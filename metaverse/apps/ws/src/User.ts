@@ -1,32 +1,35 @@
 import { WebSocket } from "ws";
 import { RoomManager } from "./RoomManager";
-import jwt, {JwtPayload} from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { OutgoingMessage } from "./types";
-import client from "@repo/db/client"
+import client from "@repo/db/client";
 import { JWT_PASSWORD } from "./config";
-
+import { SpaceUserService } from "./services/SpaceUserService";
 
 function getRandomString(length: number) {
-    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let result = ""
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length))
-
-    }
-    return result
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
 }
 export class User {
   public id: string;
   public userId?: string;
-  private spaceId?: string;
+  public spaceId?: string;
   private x: number;
   private y: number;
-  
+  private animation?: string;
+  private saveInterval: NodeJS.Timeout | null = null;
+  private service = new SpaceUserService();
 
   constructor(private ws: WebSocket) {
     this.id = getRandomString(10);
     this.x = 0;
     this.y = 0;
+    this.animation = "DOWN";
     this.initHandlers();
   }
 
@@ -37,12 +40,17 @@ export class User {
         case "join":
           const spaceId = parsedData.payload.spaceId;
           const token = parsedData.payload.token;
+
           const userId = (jwt.verify(token, JWT_PASSWORD) as JwtPayload).userId;
           if (!userId) {
             this.ws.close();
             return;
           }
+
           this.userId = userId;
+
+          console.log(userId);
+
           const space = await client.space.findFirst({
             where: {
               id: spaceId,
@@ -53,28 +61,63 @@ export class User {
             return;
           }
           this.spaceId = spaceId;
+
+          const existingUser = RoomManager.getInstance().findUser(
+            userId,
+            spaceId
+          );
+
+          if (existingUser) {
+            existingUser.send({
+              type: "new-tab",
+            });
+            existingUser.cleanup();
+          }
+
+          const existing = await this.service.findPlayer({ userId, spaceId });
+
+          if (existing) {
+            this.x = existing.x;
+            this.y = existing.y;
+          } else {
+            const randomX = Math.floor((Math.random() * space.width) / 16);
+            const randomY = Math.floor((Math.random() * space.height) / 16);
+            const created = await this.service.createPlayer({
+              userId,
+              spaceId,
+              x: randomX,
+              y: randomY,
+            });
+            this.x = created.x;
+            this.y = created.y;
+          }
+
+          console.log(this.x, this.y);
+
           RoomManager.getInstance().addUser(spaceId, this);
-          this.x = Math.floor(Math.random() * space?.width);
-          this.y = Math.floor(Math.random() * space?.height);
+
           this.send({
             type: "space-joined",
             payload: {
+              id: this.id,
+              userId: this.userId,
               spawn: {
                 x: this.x,
                 y: this.y,
               },
               users:
                 RoomManager.getInstance()
-                  .rooms.get(spaceId)?.filter(x => x.id !== this.id)
-                  ?.map((u) => ({ id: u.id })) ?? [],
-            },
+                  .rooms.get(spaceId)
+                  ?.filter((x) => x.id !== this.id)
+                  ?.map((u) => ({ id: u.id, x: u.x, y: u.y })) ?? [],
+            }, //we made a change here to include the coordinates of other users on spawning
           });
 
           RoomManager.getInstance().broadcast(
             {
               type: "user-joined",
               payload: {
-                userId: this.userId,
+                id: this.id,
                 x: this.x,
                 y: this.y,
               },
@@ -82,41 +125,99 @@ export class User {
             this,
             this.spaceId!
           );
+
+          this.startSaveInterval();
+
           break;
         case "move":
           const moveX = parsedData.payload.x;
           const moveY = parsedData.payload.y;
           const xDisplacement = Math.abs(this.x - moveX);
           const yDisplacement = Math.abs(this.y - moveY);
+          const animation = parsedData.payload.animation;
+
+          const EPS = 0.001;
+
+          const withinX =
+            xDisplacement <= 1 + EPS && Math.abs(yDisplacement) <= EPS;
+
+          const withinY =
+            yDisplacement <= 1 + EPS && Math.abs(xDisplacement) <= EPS;
+
           if (
-            (xDisplacement == 1 && yDisplacement == 0) ||
-            (xDisplacement == 0 && yDisplacement == 1)
+            withinX ||
+            withinY
+            //here we can do the verification if the made move was legal or not
           ) {
             this.x = moveX;
             this.y = moveY;
+            this.animation = animation;
+
             RoomManager.getInstance().broadcast(
               {
                 type: "movement",
                 payload: {
+                  id: this.id,
                   x: this.x,
                   y: this.y,
+                  animation: this.animation,
                 },
               },
               this,
               this.spaceId!
             );
+
             return;
           }
 
           this.send({
             type: "movement-rejected",
             payload: {
+              id: this.id,
               x: this.x,
               y: this.y,
             },
           });
+          break;
       }
     });
+  }
+
+  private startSaveInterval() {
+    if (this.saveInterval) return;
+
+    this.saveInterval = setInterval(() => {
+      if (!this.userId || !this.spaceId) return;
+
+      this.service
+        .updatePosition({
+          userId: this.userId,
+          spaceId: this.spaceId,
+          x: this.x,
+          y: this.y,
+        })
+        .catch(() => {});
+    }, 3000);
+  }
+
+  public cleanup() {
+    if (this.saveInterval) {
+      clearInterval(this.saveInterval);
+      this.saveInterval = null;
+    }
+
+    if (this.userId && this.spaceId) {
+      this.service
+        .updatePosition({
+          userId: this.userId,
+          spaceId: this.spaceId,
+          x: this.x,
+          y: this.y,
+        })
+        .catch(() => {});
+    }
+
+    this.destroy();
   }
 
   destroy() {
@@ -124,7 +225,7 @@ export class User {
       {
         type: "user-left",
         payload: {
-          userId: this.userId,
+          id: this.id,
         },
       },
       this,

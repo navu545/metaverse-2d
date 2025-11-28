@@ -1,10 +1,20 @@
 import express from "express";
-import { router } from "./routes/v1";
-import client from "@repo/db/client";
+import cors from "cors";
 
+import { router } from "./routes/v1";
 
 
 const app = express()
+
+app.use(cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+}))
+
+app.get("/api/ping", (req, res) => {
+  res.send("Pong");
+});
+
 app.use(express.json())
 
 

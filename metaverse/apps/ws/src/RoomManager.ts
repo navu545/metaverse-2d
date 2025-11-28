@@ -25,9 +25,11 @@ export class RoomManager {
 
   public addUser(spaceId: string, user: User) {
     if (!this.rooms.has(spaceId)) {
+   
       this.rooms.set(spaceId, [user]);
       return;
     }
+
     this.rooms.set(spaceId, [...(this.rooms.get(spaceId) ?? []), user]);
   }
 
@@ -35,10 +37,20 @@ export class RoomManager {
     if (!this.rooms.has(roomId)) {
         return
     }
+    
     this.rooms.get(roomId)?.forEach((u)=> {
         if (u.id !== user.id) {
             u.send(message)
         }
     })
+  }
+
+  public findUser(userId:string, spaceId:string) {
+
+    const room = this.rooms.get(spaceId)
+
+    if (!room) return null;
+    
+    return room.find((u)=> u.userId == userId) || null;
   }
 }

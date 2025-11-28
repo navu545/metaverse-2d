@@ -21,6 +21,7 @@ model User {
   role     Role
   spaces   Space[]
   avatar   Avatar?  @relation(fields: [avatarId], references: [id])
+  position spaceUsers[]
 }
 
 model Space {
@@ -32,6 +33,7 @@ model Space {
   creatorId String
   creator   User    @relation(fields: [creatorId], references: [id])
   elements  spaceElements[]
+  users     spaceUsers[]
 }
 
 model spaceElements {
@@ -44,6 +46,18 @@ model spaceElements {
   element   Element  @relation(fields: [elementId], references: [id])
 
 }
+
+model spaceUsers {
+  id        String @id @unique @default(cuid())
+  spaceId   String
+  userId    String
+  x         Int
+  y         Int
+  space     Space  @relation(fields: [spaceId], references: [id])
+  user      User   @relation(fields:[userId], references:[id])
+  @@unique([userId, spaceId])
+}
+
 
 model Element {
   id              String @id @unique @default(cuid())

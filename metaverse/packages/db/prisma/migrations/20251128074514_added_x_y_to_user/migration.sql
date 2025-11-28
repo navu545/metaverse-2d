@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "x" INTEGER,
+ADD COLUMN     "y" INTEGER;
