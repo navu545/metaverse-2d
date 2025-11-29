@@ -57,12 +57,10 @@ export default function Arena() {
           const msg = JSON.parse(event.data);
 
           switch (msg.type) {
-
             case "space-joined": {
-
               const { id, spawn, userId, users } = msg.payload;
 
-              userIdRef.current = userId
+              userIdRef.current = userId;
 
               localPlayerRef.current = {
                 id: id,
@@ -92,30 +90,24 @@ export default function Arena() {
             }
 
             case "movement": {
-              
               const { id, x, y, animation } = msg.payload;
 
-              console.log(x,y)
-
               if (id !== localPlayerRef.current?.id) {
-                remotePlayersRef.current.set(id, { x, y,animation });
+                remotePlayersRef.current.set(id, { x, y, animation });
               }
 
               break;
-
             }
 
-            case "movement-rejected":{
+            case "movement-rejected": {
+              const { id, x, y } = msg.payload;
 
-              const {id,x,y} = msg.payload
-              
               if (id === localPlayerRef.current?.id) {
-                  localPlayerRef.current!.x = x;
-                  localPlayerRef.current!.y = y;
+                localPlayerRef.current!.x = x;
+                localPlayerRef.current!.y = y;
               }
-              break
+              break;
             }
-
 
             case "user-joined": {
               const { id, x, y } = msg.payload;
@@ -124,23 +116,31 @@ export default function Arena() {
             }
 
             case "user-left": {
-              console.log('user left received')
+              console.log("user left received");
               const { id } = msg.payload;
               remotePlayersRef.current.delete(id);
-              console.log('player deleted')
+              console.log("player deleted");
               break;
             }
 
             case "new-tab": {
-
-              if(!stopGameRef.current){
-                return
+              if (!stopGameRef.current) {
+                return;
               }
-              const stopGame = stopGameRef.current
-              stopGame()
+              const stopGame = stopGameRef.current;
+              stopGame();
               break;
             }
 
+            case "proximity-enter": {
+              const {users} = msg.payload
+              console.log(users)
+              break;
+            }
+
+            case "proximity-leave": {
+              console.log('every one far')
+            }
           }
         }
 

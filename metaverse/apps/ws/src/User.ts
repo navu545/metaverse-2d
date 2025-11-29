@@ -19,11 +19,12 @@ export class User {
   public id: string;
   public userId?: string;
   public spaceId?: string;
-  private x: number;
-  private y: number;
+  public x: number;
+  public y: number;
   private animation?: string;
   private saveInterval: NodeJS.Timeout | null = null;
   private service = new SpaceUserService();
+  private nearbyUsers: Set<string> = new Set();
 
   constructor(private ws: WebSocket) {
     this.id = getRandomString(10);
@@ -167,6 +168,33 @@ export class User {
               this.spaceId!
             );
 
+            const nearbyPlayers = RoomManager.getInstance().findNearbyPlayers(
+              this,
+              this.spaceId!,
+              1
+            );
+
+            const currentSet = new Set<string>(
+              nearbyPlayers.map((u) => u.userId!)
+            );
+
+            const previousSet = this.nearbyUsers;
+
+            if (!setsAreEqual(previousSet, currentSet)) {
+              // Enter event (1st time or someone new entered area)
+              if (currentSet.size > 0 && previousSet.size === 0) {
+                this.sendProximityEnter(currentSet);
+              }
+
+              // Leave event (nobody nearby now)
+              if (currentSet.size === 0 && previousSet.size > 0) {
+                this.sendProximityLeave();
+              }
+
+              // Update state
+              this.nearbyUsers = currentSet;
+            }
+
             return;
           }
 
@@ -236,4 +264,50 @@ export class User {
   send(payload: OutgoingMessage) {
     this.ws.send(JSON.stringify(payload));
   }
+
+  sendProximityEnter(currentSet: Set<string>) {
+    const users = [...currentSet];
+
+    this.send({
+      type: "proximity-enter",
+      payload: {
+        users: users,
+      },
+    });
+  }
+
+  sendProximityLeave() {
+    this.send({
+      type: "proximity-leave",
+    });
+  }
 }
+
+function setsAreEqual(a: Set<any>, b: Set<any>) {
+  if (a.size !== b.size) return false;
+  for (const item of a) if (!b.has(item)) return false;
+  return true;
+}
+
+//for incorporating multiple users in the proximty
+
+// const previousSet = this.nearbyUsers;
+// const currentSet = new Set<string>(nearbyPlayers.map((u) => u.userId!));
+
+// // Users who newly entered proximity
+// const entered = [...currentSet].filter((id) => !previousSet.has(id));
+
+// // Users who left proximity
+// const exited = [...previousSet].filter((id) => !currentSet.has(id));
+
+// // Trigger events
+// if (entered.length > 0) {
+//   this.sendProximityEnter(entered);
+// }
+
+// if (exited.length > 0) {
+//   this.sendProximityLeave(exited);
+// }
+
+// // Update state
+// this.nearbyUsers = currentSet;

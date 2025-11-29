@@ -16,16 +16,18 @@ export class RoomManager {
     return this.instance;
   }
 
-  public removeUser(user: User , spaceId:string){
+  public removeUser(user: User, spaceId: string) {
     if (!this.rooms.has(spaceId)) {
-        return
+      return;
     }
-    this.rooms.set(spaceId, (this.rooms.get(spaceId)?.filter((u)=> u.id !== user.id) ?? [] ))
+    this.rooms.set(
+      spaceId,
+      this.rooms.get(spaceId)?.filter((u) => u.id !== user.id) ?? []
+    );
   }
 
   public addUser(spaceId: string, user: User) {
     if (!this.rooms.has(spaceId)) {
-   
       this.rooms.set(spaceId, [user]);
       return;
     }
@@ -35,22 +37,34 @@ export class RoomManager {
 
   public broadcast(message: OutgoingMessage, user: User, roomId: string) {
     if (!this.rooms.has(roomId)) {
-        return
+      return;
     }
-    
-    this.rooms.get(roomId)?.forEach((u)=> {
-        if (u.id !== user.id) {
-            u.send(message)
-        }
-    })
+
+    this.rooms.get(roomId)?.forEach((u) => {
+      if (u.id !== user.id) {
+        u.send(message);
+      }
+    });
   }
 
-  public findUser(userId:string, spaceId:string) {
-
-    const room = this.rooms.get(spaceId)
+  public findUser(userId: string, spaceId: string) {
+    const room = this.rooms.get(spaceId);
 
     if (!room) return null;
-    
-    return room.find((u)=> u.userId == userId) || null;
+
+    return room.find((u) => u.userId == userId) || null;
+  }
+
+  public findNearbyPlayers(user: User, spaceId: string, radius: number) {
+    const room = this.rooms.get(spaceId);
+
+    if (!room) return [];
+
+    return room.filter(
+      (u) =>
+        u.userId !== user.userId &&
+        Math.abs(u.x - user.x) <= radius &&
+        Math.abs(u.y - user.y) <= radius
+    );
   }
 }
