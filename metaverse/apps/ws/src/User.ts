@@ -174,26 +174,11 @@ export class User {
               1
             );
 
-            const currentSet = new Set<string>(
-              nearbyPlayers.map((u) => u.userId!)
-            );
+            const currentSet = new Set<string>(nearbyPlayers.map((u) => u.id!));
 
             const previousSet = this.nearbyUsers;
 
-            if (!setsAreEqual(previousSet, currentSet)) {
-              // Enter event (1st time or someone new entered area)
-              if (currentSet.size > 0 && previousSet.size === 0) {
-                this.sendProximityEnter(currentSet);
-              }
-
-              // Leave event (nobody nearby now)
-              if (currentSet.size === 0 && previousSet.size > 0) {
-                this.sendProximityLeave();
-              }
-
-              // Update state
-              this.nearbyUsers = currentSet;
-            }
+            this.proximity(previousSet, currentSet);
 
             return;
           }
@@ -265,31 +250,73 @@ export class User {
     this.ws.send(JSON.stringify(payload));
   }
 
-  sendProximityEnter(currentSet: Set<string>) {
-    const users = [...currentSet];
-
+  sendProximityEnter(usersJoined: string[]) {
     this.send({
       type: "proximity-enter",
       payload: {
-        users: users,
+        users: usersJoined,
       },
     });
   }
 
-  sendProximityLeave() {
+  sendProximityLeave(usersLeft: string[]) {
     this.send({
       type: "proximity-leave",
+      payload: {
+        users: usersLeft,
+      },
     });
+  }
+
+  proximity(a: Set<any>, b: Set<any>) {
+    let usersLeft = [];
+    let usersJoined = [];
+
+    for (const user of a) {
+      if (!b.has(user)) {
+        usersLeft.push(user);
+      }
+    }
+
+    if (usersLeft.length > 0) {
+      this.sendProximityLeave(usersLeft);
+
+      usersLeft.forEach((otherUserId) => {
+        const otherUser = RoomManager.getInstance().findUser(
+          otherUserId,
+          this.spaceId!
+        );
+        if (otherUser) {
+          otherUser.sendProximityLeave([this.userId!]);
+        }
+      });
+    }
+
+    for (const user of b) {
+      if (!a.has(user)) {
+        usersJoined.push(user);
+      }
+    }
+
+    if (usersJoined.length > 0) {
+      this.sendProximityEnter(usersJoined);
+
+      usersJoined.forEach((otherUserId) => {
+        const otherUser = RoomManager.getInstance().findUser(
+          otherUserId,
+          this.spaceId!
+        );
+        if (otherUser) {
+          otherUser.sendProximityEnter([this.userId!]);
+        }
+      });
+    }
+
+    this.nearbyUsers = b;
   }
 }
 
-function setsAreEqual(a: Set<any>, b: Set<any>) {
-  if (a.size !== b.size) return false;
-  for (const item of a) if (!b.has(item)) return false;
-  return true;
-}
-
-//for incorporating multiple users in the proximty
+// for incorporating multiple users in the proximty
 
 // const previousSet = this.nearbyUsers;
 // const currentSet = new Set<string>(nearbyPlayers.map((u) => u.userId!));

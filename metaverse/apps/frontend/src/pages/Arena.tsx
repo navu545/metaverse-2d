@@ -3,57 +3,50 @@ import { startGame } from "../game";
 import { makeASpace } from "../httpModule/testApi";
 import { connectWS } from "../wsModule/wsConnect";
 
-
 export default function Arena() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
 
   const localPlayerRef = useRef<{
-    id:string;
-    x:number;
-    y:number
+    id: string;
+    x: number;
+    y: number;
   } | null>(null);
 
-  const positionKeyRef = useRef<string>("")
+  const positionKeyRef = useRef<string>("");
 
-  const userIdRef = useRef<string>("")
+  const userIdRef = useRef<string>("");
 
-  const remotePlayersRef = useRef<Map<string, {x:number, y:number, animation?:string}>>(new Map());
+  const remotePlayersRef = useRef<
+    Map<string, { x: number; y: number; animation?: string }>
+  >(new Map());
 
-  const isMounted = useRef(false)
+  const isMounted = useRef(false);
 
   const stopGameRef = useRef<(() => void) | null>(null);
 
+  const enableMsgRef = useRef(false);
+
+  const proximityUserIdsRef = useRef([]);
 
   useEffect(() => {
-
-
     const init = async () => {
-
       try {
-
         //save the canvas in a ref
         const canvas = canvasRef.current;
 
         //connect to http
-        const {spaceId, adminToken } = await makeASpace();
+        const { spaceId, adminToken } = await makeASpace();
 
-        console.log(spaceId)
-        console.log(adminToken);
-  
-          //connect to ws
-        const ws = await connectWS(
-          "cmifpn9rz0521vbbcevoc6mde",
-          adminToken
-        );
+        //connect to ws
+        const ws = await connectWS("cmifpn9rz0521vbbcevoc6mde", adminToken);
 
         //save the ws in useRef
         wsRef.current = ws;
 
         //attaching listeners
         ws.onmessage = (event) => {
-
           const msg = JSON.parse(event.data);
 
           switch (msg.type) {
@@ -83,7 +76,9 @@ export default function Arena() {
                 wsRef.current!,
                 localPlayerRef,
                 remotePlayersRef,
-                positionKeyRef
+                positionKeyRef,
+                enableMsgRef,
+                proximityUserIdsRef
               );
 
               break;
@@ -116,10 +111,10 @@ export default function Arena() {
             }
 
             case "user-left": {
-              console.log("user left received");
+              console.log('user left fired')
               const { id } = msg.payload;
               remotePlayersRef.current.delete(id);
-              console.log("player deleted");
+
               break;
             }
 
@@ -133,33 +128,29 @@ export default function Arena() {
             }
 
             case "proximity-enter": {
-              const {users} = msg.payload
-              console.log(users)
+              console.log("user in proximity");
+              const { users } = msg.payload;
+              console.log(users);
+              proximityUserIdsRef.current = users;
+              enableMsgRef.current = true;
+
               break;
             }
 
             case "proximity-leave": {
-              console.log('every one far')
+              enableMsgRef.current = false;
             }
           }
-        }
-
-
-      } 
-      
-      catch (err) {
+        };
+      } catch (err) {
         console.error("Setup failed:", err);
       }
-
     };
 
-    if(!isMounted.current){ 
-      isMounted.current = true
-      init()
-
+    if (!isMounted.current) {
+      isMounted.current = true;
+      init();
     }
-
-    
   }, []);
 
   return (

@@ -7,15 +7,14 @@ export class GameObject {
   children: Array<GameObject>;
   parent: GameObject | null;
   hasReadyBeenCalled: boolean;
-  input: Input | null
+  input: Input | null;
 
-  constructor( position? : Vector2) {
+  constructor(position?: Vector2) {
     this.position = position ?? new Vector2(0, 0);
     this.children = [];
     this.parent = null;
     this.hasReadyBeenCalled = false;
-    this.input = null
-
+    this.input = null;
   }
 
   stepEntry(delta: number, root: GameObject) {
@@ -31,7 +30,7 @@ export class GameObject {
 
   ready() {}
 
-  step(_delta: number, _root:GameObject) {}
+  step(_delta: number, _root: GameObject) {}
 
   draw(ctx: CanvasRenderingContext2D, x: number, y: number) {
     const drawPosX = x + this.position.x;
@@ -62,10 +61,27 @@ export class GameObject {
   }
 
   removeChild(gameObject: GameObject) {
-
     events.unsubscribe(gameObject);
     this.children = this.children.filter((g) => {
       return gameObject !== g;
     });
+
+    if (gameObject.parent === this) {
+      gameObject.parent = null;
+    }
+  }
+
+  getWorldPosition() {
+    let node = this as GameObject | null;
+    let x = 0;
+    let y = 0;
+
+    while (node) {
+      x += node.position.x;
+      y += node.position.y;
+      node = node.parent;
+    }
+
+    return { x, y };
   }
 }

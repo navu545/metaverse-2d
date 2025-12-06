@@ -7,6 +7,7 @@ import { DOWN, LEFT, RIGHT, UP } from "../../../core/Input";
 import { resources } from "../../../core/Resource";
 import { Sprite } from "../../../core/Sprite";
 import { Vector2 } from "../../../core/Vector2";
+import { ChatBubble } from "../../ChatBubble/Chatbubble";
 import {
   PICK_UP_DOWN,
   STAND_DOWN,
@@ -20,6 +21,7 @@ import {
 } from "./heroAnimations";
 import { walls } from "../../../collisions/walls";
 import { events } from "../../../core/Events";
+import type React from "react";
 
 export class Hero extends GameObject {
   body: Sprite;
@@ -34,16 +36,21 @@ export class Hero extends GameObject {
   remoteHero?: boolean;
   remoteAnimation?: string;
   positionKey?: React.RefObject<string>;
+  enableMsgRef?: React.RefObject<boolean>;
+  enableMsg?: boolean;
+  chatBubble?: ChatBubble;
+  hasMessage: boolean;
 
   constructor(
     x: number,
     y: number,
-    options:{
-    positionKey?: React.RefObject<string>,
-    remoteHero?: boolean,
-    ws?: WebSocket,
-    animation?: string
-  } = {}
+    options: {
+      positionKey?: React.RefObject<string>;
+      remoteHero?: boolean;
+      ws?: WebSocket;
+      animation?: string;
+      enableMsgRef?: React.RefObject<boolean>;
+    } = {}
   ) {
     super(new Vector2(x, y));
 
@@ -51,6 +58,19 @@ export class Hero extends GameObject {
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
     this.positionKey = options.positionKey;
+
+    this.enableMsgRef = options.enableMsgRef;
+    if (this.remoteHero){
+      this.enableMsg = this.enableMsgRef?.current ?? false;
+    }
+    this.hasMessage = false;
+
+    if(this.remoteHero){
+      console.log('remote bubble created')
+      const chatBubble = new ChatBubble(this);
+      this.chatBubble = chatBubble;
+      this.addChild(this.chatBubble)
+    }
 
     const shadow = new Sprite({
       resource: resources.images.shadow,
@@ -98,14 +118,36 @@ export class Hero extends GameObject {
   }
 
   step(delta: number, root: GameObject) {
+
+    // 1) Read fresh value from ref each frame
+
+    const latest = this.enableMsgRef?.current ?? false;
+
+    // 2) Only react if it actually changed
+    if (latest !== this.enableMsg) {
+      this.enableMsg = latest;
+
+      if (this.enableMsg && !this.hasMessage) {
+        console.log("chatbubble being added");
+
+        this.hasMessage = true;
+        this.chatBubble?.enable();
+      }
+
+      if (!this.enableMsg && this.hasMessage) {
+        console.log("chatbubble being removed");
+
+        this.hasMessage = false;
+        this.chatBubble?.disable();
+      }
+    }
+
     if (this.itemPickupTime > 0) {
       this.workOnItemPickup(delta);
       return;
     }
 
     const distance = moveTowards(this, this.destinationPosition, 1);
-
-    //for remote hero up until here the distance will do the job of updating it
 
     const hasArrived = distance <= 1;
     if (hasArrived) {
@@ -146,11 +188,7 @@ export class Hero extends GameObject {
       );
     }
 
-    
-
-
     events.emit("HERO_POSITION", this.position);
-
   }
 
   tryMove(root: GameObject) {

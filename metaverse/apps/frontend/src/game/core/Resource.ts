@@ -10,6 +10,10 @@ class Resources {
       hero: "/sprites/hero-sheet.png",
       shadow: "/sprites/shadow.png",
       rod: "/sprites/rod.png",
+      message: "/sprites/mail.png",
+      accept: "./sprites/accept.png",
+      close: "./sprites/close.png"
+
     };
 
     this.images = {};

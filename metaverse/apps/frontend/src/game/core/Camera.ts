@@ -18,6 +18,7 @@ export class Camera extends GameObject {
         -heroPosition.x + halfWidth,
         -heroPosition.y + halfHeight
       );
+
     });
   }
 }
