@@ -26,9 +26,13 @@ export default function Arena() {
 
   const stopGameRef = useRef<(() => void) | null>(null);
 
-  const enableMsgRef = useRef(false);
+  const proximityUserIdsRef = useRef<string[]>([]);
 
-  const proximityUserIdsRef = useRef([]);
+  const proximityUserLeftRef = useRef<string[]>([]);
+
+  const acceptRef = useRef<boolean>(false);
+
+  const rejectRef = useRef<boolean>(false);
 
   useEffect(() => {
     const init = async () => {
@@ -77,12 +81,15 @@ export default function Arena() {
                 localPlayerRef,
                 remotePlayersRef,
                 positionKeyRef,
-                enableMsgRef,
-                proximityUserIdsRef
+                proximityUserIdsRef,
+                proximityUserLeftRef,
+                acceptRef,
+                rejectRef
               );
 
-              break;
+              
             }
+            break;
 
             case "movement": {
               const { id, x, y, animation } = msg.payload;
@@ -91,8 +98,17 @@ export default function Arena() {
                 remotePlayersRef.current.set(id, { x, y, animation });
               }
 
-              break;
+              //trigger move here to run proximity check
+
+              wsRef.current!.send(
+                JSON.stringify({
+                  type: "run-proximity",
+                })
+              );
+
+              
             }
+            break;
 
             case "movement-rejected": {
               const { id, x, y } = msg.payload;
@@ -101,22 +117,25 @@ export default function Arena() {
                 localPlayerRef.current!.x = x;
                 localPlayerRef.current!.y = y;
               }
-              break;
+              
             }
+            break;
 
             case "user-joined": {
               const { id, x, y } = msg.payload;
               remotePlayersRef.current.set(id, { x, y });
-              break;
+              
             }
+            break;
 
             case "user-left": {
-              console.log('user left fired')
+              console.log("user left fired");
               const { id } = msg.payload;
               remotePlayersRef.current.delete(id);
 
-              break;
+              
             }
+            break;
 
             case "new-tab": {
               if (!stopGameRef.current) {
@@ -124,22 +143,57 @@ export default function Arena() {
               }
               const stopGame = stopGameRef.current;
               stopGame();
-              break;
+              
             }
+            break;
 
             case "proximity-enter": {
-              console.log("user in proximity");
+              console.log("user entered in proximity");
               const { users } = msg.payload;
-              console.log(users);
-              proximityUserIdsRef.current = users;
-              enableMsgRef.current = true;
+              const leavingSet = new Set(users);
 
-              break;
+              proximityUserLeftRef.current =
+                proximityUserLeftRef.current.filter(
+                  (id) => !leavingSet.has(id)
+                );
+
+              proximityUserIdsRef.current = users;
+              
             }
+            break;
 
             case "proximity-leave": {
-              enableMsgRef.current = false;
+              console.log("user left from proximity");
+
+              const { users } = msg.payload;
+              const leavingSet = new Set(users);
+
+              proximityUserIdsRef.current = proximityUserIdsRef.current.filter(
+                (id) => !leavingSet.has(id)
+              );
+
+              proximityUserLeftRef.current = users;
+
+              acceptRef.current = false;
+              rejectRef.current = false;
+              
             }
+            break;
+
+            case "message-request": {
+              console.log("message request received")
+
+              const {id, userId} = msg.payload
+              const userInVicinity = userId
+
+              if (proximityUserIdsRef.current.includes(id)) {
+                acceptRef.current = true;
+                rejectRef.current = true;
+              } 
+
+            }
+            break;
+
           }
         };
       } catch (err) {

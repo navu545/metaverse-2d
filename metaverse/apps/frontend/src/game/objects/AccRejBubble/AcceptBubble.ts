@@ -5,7 +5,7 @@ import { resources } from "../../core/Resource";
 import { events } from "../../core/Events";
 import type { Hero } from "../Avatars/Hero/Hero";
 
-export class ChatBubble extends GameObject {
+export class AcceptBubble extends GameObject {
   hero: Hero;
   bubbleSprite: GameObject;
   eventId?: number;
@@ -16,9 +16,9 @@ export class ChatBubble extends GameObject {
   constructor(hero: Hero) {
     super(new Vector2(0, 0));
     this.hero = hero;
-    this.position = new Vector2(0, -26);
+    this.position = new Vector2(0, -50);
     this.bubbleSprite = new Sprite({
-      resource: resources.images.message,
+      resource: resources.images.accept,
       frameSize: new Vector2(16, 16),
       position: new Vector2(0, 0),
     });
@@ -31,9 +31,15 @@ export class ChatBubble extends GameObject {
     if (this.eventId != null) return;
 
     this.eventId = events.on("CLICK", this, (value: unknown) => {
+      
+
       const { x, y } = value as { x: number; y: number };
 
+  
+
       if (this.containsPoint(x, y)) {
+        
+
         this.onClick();
       }
     });
@@ -61,13 +67,6 @@ export class ChatBubble extends GameObject {
   }
 
   onClick() {
-    this.hero.webSocketConnection?.send(
-      JSON.stringify({
-        type: "send-message-request",
-        payload: {
-          users: this.hero.proximityUserIdsRef?.current,
-        },
-      })
-    );
+    console.log("Accept chatbubble clicked");
   }
 }

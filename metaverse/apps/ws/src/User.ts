@@ -38,7 +38,7 @@ export class User {
     this.ws.on("message", async (data) => {
       const parsedData = JSON.parse(data.toString());
       switch (parsedData.type) {
-        case "join":
+        case "join":{
           const spaceId = parsedData.payload.spaceId;
           const token = parsedData.payload.token;
 
@@ -128,9 +128,10 @@ export class User {
           );
 
           this.startSaveInterval();
+          }
 
           break;
-        case "move":
+        case "move": {
           const moveX = parsedData.payload.x;
           const moveY = parsedData.payload.y;
           const xDisplacement = Math.abs(this.x - moveX);
@@ -168,17 +169,7 @@ export class User {
               this.spaceId!
             );
 
-            const nearbyPlayers = RoomManager.getInstance().findNearbyPlayers(
-              this,
-              this.spaceId!,
-              1
-            );
-
-            const currentSet = new Set<string>(nearbyPlayers.map((u) => u.id!));
-
-            const previousSet = this.nearbyUsers;
-
-            this.proximity(previousSet, currentSet);
+            this.runProximity();
 
             return;
           }
@@ -191,9 +182,54 @@ export class User {
               y: this.y,
             },
           });
+        }
           break;
+
+        case "run-proximity": {
+          this.runProximity();
+        }
+        break;
+
+        case "send-message-request": {
+          
+          const userIds = parsedData.payload.users
+
+          const userIdsSet = new Set(userIds)
+    
+          const users = RoomManager.getInstance().rooms.get(this.spaceId!)
+       
+          const messageReqUsers = users?.filter((u)=> userIdsSet.has(u.id))
+      
+          messageReqUsers?.forEach((u) => {
+            u.send({
+              type:"message-request",
+              payload:{
+                id: this.id,
+                userId: this.userId,
+                
+              }
+            })
+          })
+
+
+        }
+        break;
       }
     });
+  }
+
+  private runProximity() {
+    const nearbyPlayers = RoomManager.getInstance().findNearbyPlayers(
+      this,
+      this.spaceId!,
+      1
+    );
+
+    const currentSet = new Set<string>(nearbyPlayers.map((u) => u.id!));
+
+    const previousSet = this.nearbyUsers;
+
+    this.proximity(previousSet, currentSet);
   }
 
   private startSaveInterval() {
@@ -244,6 +280,18 @@ export class User {
       this,
       this.spaceId!
     );
+
+    RoomManager.getInstance().broadcast(
+      {
+      type: "proximity-leave",
+      payload: {
+        users: [this.id],
+      },
+    },
+      this,
+      this.spaceId!
+    );
+
     RoomManager.getInstance().removeUser(this, this.spaceId!);
   }
   send(payload: OutgoingMessage) {
@@ -280,16 +328,6 @@ export class User {
 
     if (usersLeft.length > 0) {
       this.sendProximityLeave(usersLeft);
-
-      usersLeft.forEach((otherUserId) => {
-        const otherUser = RoomManager.getInstance().findUser(
-          otherUserId,
-          this.spaceId!
-        );
-        if (otherUser) {
-          otherUser.sendProximityLeave([this.userId!]);
-        }
-      });
     }
 
     for (const user of b) {
@@ -300,41 +338,9 @@ export class User {
 
     if (usersJoined.length > 0) {
       this.sendProximityEnter(usersJoined);
-
-      usersJoined.forEach((otherUserId) => {
-        const otherUser = RoomManager.getInstance().findUser(
-          otherUserId,
-          this.spaceId!
-        );
-        if (otherUser) {
-          otherUser.sendProximityEnter([this.userId!]);
-        }
-      });
     }
 
     this.nearbyUsers = b;
   }
 }
 
-// for incorporating multiple users in the proximty
-
-// const previousSet = this.nearbyUsers;
-// const currentSet = new Set<string>(nearbyPlayers.map((u) => u.userId!));
-
-// // Users who newly entered proximity
-// const entered = [...currentSet].filter((id) => !previousSet.has(id));
-
-// // Users who left proximity
-// const exited = [...previousSet].filter((id) => !currentSet.has(id));
-
-// // Trigger events
-// if (entered.length > 0) {
-//   this.sendProximityEnter(entered);
-// }
-
-// if (exited.length > 0) {
-//   this.sendProximityLeave(exited);
-// }
-
-// // Update state
-// this.nearbyUsers = currentSet;
