@@ -22,9 +22,18 @@ export class ChatBubble extends GameObject {
       frameSize: new Vector2(16, 16),
       position: new Vector2(0, 0),
     });
+ 
   }
 
   enable() {
+
+    this.bubbleSprite = new Sprite({
+      resource: resources.images.message,
+      frameSize: new Vector2(16, 16),
+      position: new Vector2(0, 0),
+    });
+
+
     if (!this.bubbleSprite.parent) {
       this.addChild(this.bubbleSprite);
     }
@@ -61,6 +70,7 @@ export class ChatBubble extends GameObject {
   }
 
   onClick() {
+
     this.hero.webSocketConnection?.send(
       JSON.stringify({
         type: "send-message-request",
@@ -69,5 +79,24 @@ export class ChatBubble extends GameObject {
         },
       })
     );
+
+    //loader
+    this.removeChild(this.bubbleSprite)
+    this.bubbleSprite = new Sprite({
+      resource: resources.images.loading,
+      frameSize: new Vector2(16, 16),
+      position: new Vector2(0, 0),
+    }); 
+    this.addChild(this.bubbleSprite)
+    if (this.eventId != null) {
+      events.off(this.eventId!);
+      this.eventId = undefined;
+    }
+
+
+    
+
+
+
   }
 }

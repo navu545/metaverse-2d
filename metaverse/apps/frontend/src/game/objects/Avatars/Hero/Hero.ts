@@ -27,6 +27,8 @@ import {RejectBubble} from "../../AccRejBubble/RejectBubble";
 
 
 export class Hero extends GameObject {
+
+  id: string;
   body: Sprite;
   facingDirection: string;
   destinationPosition: Vector2;
@@ -54,9 +56,13 @@ export class Hero extends GameObject {
   acceptBubble?: AcceptBubble;
   rejectBubble?: RejectBubble;
 
+  messageRequesterRef?: React.RefObject<string[]>;
+  acceptedRequestsRef?: React.RefObject<string[]>;
+
   constructor(
     x: number,
     y: number,
+    id: string,
     options: {
       positionKey?: React.RefObject<string>;
       remoteHero?: boolean;
@@ -65,38 +71,41 @@ export class Hero extends GameObject {
       proximityUserIdsRef?: React.RefObject<string[]>;
       acceptRef?: React.RefObject<boolean>;
       rejectRef?: React.RefObject<boolean>;
+      messageRequesterRef?: React.RefObject<string[]>;
+      acceptedRequestsRef?: React.RefObject<string[]>;
     } = {}
   ) {
     super(new Vector2(x, y));
+
+    this.id = id
 
     this.webSocketConnection = options.ws;
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
     this.positionKey = options.positionKey;
+    
 
     this.enableMsg = false;
     this.hasMessage = false;
 
     this.acceptRef = options.acceptRef;
-    this.rejectRef = options.rejectRef
+    this.rejectRef = options.rejectRef;
     this.hasAccept = false;
     this.hasReject = false;
     this.accept = false;
     this.reject = false;
 
     this.proximityUserIdsRef = options.proximityUserIdsRef;
+    this.messageRequesterRef = options.messageRequesterRef;
+    this.acceptedRequestsRef = options.acceptedRequestsRef;
 
     if (this.remoteHero) {
-      
       const chatBubble = new ChatBubble(this);
       this.chatBubble = chatBubble;
       this.addChild(this.chatBubble);
-    }
 
-    if (!this.remoteHero) {
-      
-      const acceptBubble = new AcceptBubble(this);
-      const rejectBubble = new RejectBubble(this);
+      const acceptBubble = new AcceptBubble(this, this.messageRequesterRef!);
+      const rejectBubble = new RejectBubble(this, this.messageRequesterRef!);
       this.acceptBubble = acceptBubble;
       this.rejectBubble = rejectBubble;
       this.addChild(acceptBubble);
@@ -146,15 +155,17 @@ export class Hero extends GameObject {
         }
       );
     });
+
+    events.on("ACCEPT_DECLINE_BUBBLES_OFF", this, (data) => {
+      this.acceptBubble?.disable();
+     
+      this.rejectBubble?.disable();
+      
+    });
   }
 
   step(delta: number, root: GameObject) {
-
-
     this.heroBubbles();
-
-    this.remoteHeroBubble();
-    
 
     if (this.itemPickupTime > 0) {
       this.workOnItemPickup(delta);
@@ -339,59 +350,61 @@ export class Hero extends GameObject {
 
   heroBubbles() {
 
-    if (!this.remoteHero) {
-      const latest = this.acceptRef?.current ?? false;
+    
 
-      if (latest !== this.accept) {
-        this.accept = latest;
-
-        if (this.accept && !this.hasAccept) {
-          
-          this.hasAccept = true;
-          this.acceptBubble?.enable();
-        }
-
-        if (!this.accept && this.hasAccept) {
-
-          this.hasAccept = false;
-          this.acceptBubble?.disable();
-        }
-      }
-
-      const latestReject = this.rejectRef?.current ?? false;
-
-      if (latestReject !== this.reject) {
-        this.reject = latestReject;
-
-        if (this.reject && !this.hasReject) {
-
-          this.hasReject = true;
-          this.rejectBubble?.enable();
-        }
-
-        if (!this.reject && this.hasReject) {
-
-          this.hasReject = false;
-          this.rejectBubble?.disable();
-        }
-      }
+    if (this.acceptedRequestsRef?.current.includes(this.id)){
+    this.enableMsg = false;
+    this.hasMessage = false;
+    this.chatBubble?.disable();
     }
-  }
+    
 
-  remoteHeroBubble() {
-    if (this.remoteHero) {
-      if (this.enableMsg && !this.hasMessage) {
+    
 
+    //before sending requests
+    if (this.enableMsg && !this.hasMessage) {
+      this.hasMessage = true;
+      this.chatBubble?.enable();
+    }
 
-        this.hasMessage = true;
-        this.chatBubble?.enable();
-      }
+    if (!this.enableMsg && this.hasMessage) {
+      this.hasMessage = false;
+      this.chatBubble?.disable();
+    }
+    //on receving requests
+    const latestAccept = this.acceptRef?.current ?? false;
 
-      if (!this.enableMsg && this.hasMessage) {
+    if (latestAccept !== this.accept) {
+      this.accept = latestAccept;
 
+      if (this.accept && !this.hasAccept) {
+        this.hasAccept = true;
+        this.acceptBubble?.enable();
 
+        this.enableMsg = false;
         this.hasMessage = false;
         this.chatBubble?.disable();
+      }
+
+      if (!this.accept && this.hasAccept) {
+        this.hasAccept = false;
+        this.acceptBubble?.disable();
+      }
+    }
+
+    const latestReject = this.rejectRef?.current ?? false;
+
+    if (latestReject !== this.reject) {
+      this.reject = latestReject;
+
+      if (this.reject && !this.hasReject) {
+        this.hasReject = true;
+        this.rejectBubble?.enable();
+      }
+
+      if (!this.reject && this.hasReject) {
+        this.hasReject = false;
+        this.rejectBubble?.disable();
       }
     }
   }

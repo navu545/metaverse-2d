@@ -9,19 +9,37 @@ export class AcceptBubble extends GameObject {
   hero: Hero;
   bubbleSprite: GameObject;
   eventId?: number;
+  messageRequesterRef?: React.RefObject<string[]>;
+  messageRequester: string[] | []
 
   width = 16;
   height = 16;
 
-  constructor(hero: Hero) {
+  constructor(hero: Hero, messageRequesterRef: React.RefObject<string[]>) {
     super(new Vector2(0, 0));
     this.hero = hero;
-    this.position = new Vector2(0, -50);
+    this.position = new Vector2(-10, -26);
     this.bubbleSprite = new Sprite({
       resource: resources.images.accept,
       frameSize: new Vector2(16, 16),
       position: new Vector2(0, 0),
     });
+    this.messageRequesterRef = messageRequesterRef;
+
+    this.messageRequester = this.messageRequesterRef.current
+
+  }
+
+
+  step () {
+
+    if(!this.messageRequesterRef){
+      return
+    }
+
+    if (this.messageRequester!== this.messageRequesterRef?.current){
+      this.messageRequester = this.messageRequesterRef?.current
+    }
   }
 
   enable() {
@@ -31,15 +49,9 @@ export class AcceptBubble extends GameObject {
     if (this.eventId != null) return;
 
     this.eventId = events.on("CLICK", this, (value: unknown) => {
-      
-
       const { x, y } = value as { x: number; y: number };
 
-  
-
       if (this.containsPoint(x, y)) {
-        
-
         this.onClick();
       }
     });
@@ -68,5 +80,19 @@ export class AcceptBubble extends GameObject {
 
   onClick() {
     console.log("Accept chatbubble clicked");
+
+
+    this.hero.webSocketConnection?.send(
+      JSON.stringify({
+        type:'message-request-accept',
+        payload:{
+          users: this.messageRequester
+        }
+      })
+    )
+
+    events.emit("ACCEPT_DECLINE_BUBBLES_OFF", false);
+
+
   }
 }

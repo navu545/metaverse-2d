@@ -23,7 +23,9 @@ export function startGame(
   proximityUserIdsRef: React.RefObject<string[]>,
   proximityUserLeftRef: React.RefObject<string[]>,
   acceptRef: React.RefObject<boolean>,
-  rejectRef: React.RefObject<boolean>
+  rejectRef: React.RefObject<boolean>,
+  messageRequesterRef: React.RefObject<string[]>,
+  acceptedRequestsRef: React.RefObject<string[]>
 ) {
   canvas?.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -65,13 +67,13 @@ export function startGame(
   const hero = new Hero(
     gridCells(spawn.current!.x),
     gridCells(spawn.current!.y),
+    spawn.current!.id,
     {
       positionKey: positionKey,
       remoteHero: false,
       ws: ws,
       proximityUserIdsRef: proximityUserIdsRef,
-      acceptRef: acceptRef,
-      rejectRef: rejectRef
+      
     }
   );
   mainScene.addChild(hero);
@@ -80,16 +82,20 @@ export function startGame(
     for (const [playerId, props] of remotePlayers.current) {
       //if remote player doesnt exist
       if (!remoteHeroObjects.has(playerId)) {
-
         const x = props.x;
         const y = props.y;
         const remoteAnimation = props.animation;
 
-        const remoteHero = new Hero(gridCells(x), gridCells(y), {
+        const remoteHero = new Hero(gridCells(x), gridCells(y),playerId, {
           remoteHero: true,
           animation: remoteAnimation,
           ws: ws,
-          proximityUserIdsRef: proximityUserIdsRef
+          proximityUserIdsRef: proximityUserIdsRef,
+          acceptRef: acceptRef,
+          rejectRef: rejectRef,
+          messageRequesterRef: messageRequesterRef,
+          acceptedRequestsRef: acceptedRequestsRef,
+          
         });
 
         mainScene.addChild(remoteHero);
@@ -106,14 +112,17 @@ export function startGame(
           hero.remoteHero = true;
           hero.webSocketConnection = ws;
           hero.remoteAnimation = remoteAnimation;
-          hero.proximityUserIdsRef = proximityUserIdsRef
+          hero.proximityUserIdsRef = proximityUserIdsRef;
+          hero.acceptRef = acceptRef;
+          hero.rejectRef = rejectRef;
+          hero.messageRequesterRef = messageRequesterRef;
+          hero.acceptedRequestsRef = acceptedRequestsRef
         }
       }
     }
 
     //if the latest list doesnt have an existing id, get rid of it
     for (const id of Array.from(remoteHeroObjects.keys())) {
-      
       if (!remotePlayers.current.has(id)) {
         const hero = remoteHeroObjects.get(id)!;
         mainScene.removeChild(hero);
@@ -123,23 +132,21 @@ export function startGame(
   }
 
   function updateChatBubble() {
-
-
     for (const userId of proximityUserIdsRef.current) {
       if (remoteHeroObjects.has(userId)) {
         const remoteHero = remoteHeroObjects.get(userId);
-        remoteHero!.enableMsg = true;
-      }
-    
-    }
-    
 
-    for (const userId of proximityUserLeftRef.current){
+        if (!acceptRef.current ) {
+          remoteHero!.enableMsg = true;
+        }
+      }
+    }
+
+    for (const userId of proximityUserLeftRef.current) {
       if (remoteHeroObjects.has(userId)) {
         const remoteHero = remoteHeroObjects.get(userId);
         remoteHero!.enableMsg = false;
       }
- 
     }
   }
 
@@ -155,7 +162,7 @@ export function startGame(
 
   const update = (delta: number) => {
     updateRemotePlayer();
-    updateChatBubble(); 
+    updateChatBubble();
     mainScene.stepEntry(delta, mainScene);
   };
 

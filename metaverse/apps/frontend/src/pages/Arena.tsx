@@ -34,6 +34,11 @@ export default function Arena() {
 
   const rejectRef = useRef<boolean>(false);
 
+  const messageRequesterRef = useRef<string[]>([]);
+
+  const acceptedRequestsRef = useRef<string[]>([]);
+
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -84,7 +89,9 @@ export default function Arena() {
                 proximityUserIdsRef,
                 proximityUserLeftRef,
                 acceptRef,
-                rejectRef
+                rejectRef,
+                messageRequesterRef,
+                acceptedRequestsRef
               );
 
               
@@ -174,6 +181,15 @@ export default function Arena() {
 
               proximityUserLeftRef.current = users;
 
+              messageRequesterRef.current = messageRequesterRef.current.filter(
+                (id) => !leavingSet.has(id)
+              );
+
+              acceptedRequestsRef.current = acceptedRequestsRef.current.filter(
+                (id) => !leavingSet.has(id)
+              );
+
+
               acceptRef.current = false;
               rejectRef.current = false;
               
@@ -184,12 +200,27 @@ export default function Arena() {
               console.log("message request received")
 
               const {id, userId} = msg.payload
-              const userInVicinity = userId
+
+              messageRequesterRef.current = [
+                ...messageRequesterRef.current,
+                id,
+              ];
 
               if (proximityUserIdsRef.current.includes(id)) {
                 acceptRef.current = true;
                 rejectRef.current = true;
               } 
+
+
+            }
+            break;
+
+            case "request-accepted": {
+              const {users} = msg.payload 
+
+              console.log('your request was accepted')
+
+              acceptedRequestsRef.current = [...acceptedRequestsRef.current, ...users]
 
             }
             break;

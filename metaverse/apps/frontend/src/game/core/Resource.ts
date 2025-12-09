@@ -12,7 +12,8 @@ class Resources {
       rod: "/sprites/rod.png",
       message: "/sprites/mail.png",
       accept: "./sprites/accept.png",
-      close: "./sprites/close.png"
+      decline: "./sprites/decline.png",
+      loading: "./sprites/buffer.png"
 
     };
 

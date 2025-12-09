@@ -192,13 +192,13 @@ export class User {
 
         case "send-message-request": {
           
-          const userIds = parsedData.payload.users
-
-          const userIdsSet = new Set(userIds)
-    
-          const users = RoomManager.getInstance().rooms.get(this.spaceId!)
+          const userIds:string[] = parsedData.payload.users
        
-          const messageReqUsers = users?.filter((u)=> userIdsSet.has(u.id))
+          const messageReqUsers = userIds
+            .map((id) =>
+              RoomManager.getInstance().findUserById(id, this.spaceId!)
+            )
+            .filter((u):u is User=> u !== null);
       
           messageReqUsers?.forEach((u) => {
             u.send({
@@ -211,7 +211,25 @@ export class User {
             })
           })
 
+        }
+        break;
 
+
+
+        case "message-request-accept": {
+
+          const users: string[] = parsedData.payload.users
+
+          const acceptedUsers = users.map((id) => RoomManager.getInstance().findUserById(id, this.spaceId!)).filter((u): u is User => u!== null)
+
+          acceptedUsers.forEach((u) => {
+            u.send({
+              type:'request-accepted',
+              payload: {
+                users: [this.id]
+              }
+            })
+          })
         }
         break;
       }

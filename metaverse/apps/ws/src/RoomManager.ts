@@ -55,6 +55,14 @@ export class RoomManager {
     return room.find((u) => u.userId == userId) || null;
   }
 
+  public findUserById(id:string, spaceId:string) {
+    const room = this.rooms.get(spaceId);
+
+    if(!room) return null;
+
+    return room.find((u)=> u.id == id) ?? null;
+  }
+
   public findNearbyPlayers(user: User, spaceId: string, radius: number) {
     const room = this.rooms.get(spaceId);
 
