@@ -5,6 +5,7 @@ import { OutgoingMessage } from "./types";
 import client from "@repo/db/client";
 import { JWT_PASSWORD } from "./config";
 import { SpaceUserService } from "./services/SpaceUserService";
+import { SessionManager } from "./SessionManager";
 
 function getRandomString(length: number) {
   const characters =
@@ -18,6 +19,7 @@ function getRandomString(length: number) {
 export class User {
   public id: string;
   public userId?: string;
+  public name?: string;
   public spaceId?: string;
   public x: number;
   public y: number;
@@ -25,6 +27,7 @@ export class User {
   private saveInterval: NodeJS.Timeout | null = null;
   private service = new SpaceUserService();
   private nearbyUsers: Set<string> = new Set();
+  public sessionId?: string;
 
   constructor(private ws: WebSocket) {
     this.id = getRandomString(10);
@@ -38,200 +41,257 @@ export class User {
     this.ws.on("message", async (data) => {
       const parsedData = JSON.parse(data.toString());
       switch (parsedData.type) {
-        case "join":{
-          const spaceId = parsedData.payload.spaceId;
-          const token = parsedData.payload.token;
+        case "join":
+          {
+            const spaceId = parsedData.payload.spaceId;
+            const token = parsedData.payload.token;
 
-          const userId = (jwt.verify(token, JWT_PASSWORD) as JwtPayload).userId;
-          if (!userId) {
-            this.ws.close();
-            return;
-          }
+            const userId = (jwt.verify(token, JWT_PASSWORD) as JwtPayload)
+              .userId;
+            if (!userId) {
+              this.ws.close();
+              return;
+            }
 
-          this.userId = userId;
+            this.userId = userId;
 
-          console.log(userId);
+            console.log(userId);
 
-          const space = await client.space.findFirst({
-            where: {
-              id: spaceId,
-            },
-          });
-          if (!space) {
-            this.ws.close();
-            return;
-          }
-          this.spaceId = spaceId;
-
-          const existingUser = RoomManager.getInstance().findUser(
-            userId,
-            spaceId
-          );
-
-          if (existingUser) {
-            existingUser.send({
-              type: "new-tab",
-            });
-            existingUser.cleanup();
-          }
-
-          const existing = await this.service.findPlayer({ userId, spaceId });
-
-          if (existing) {
-            this.x = existing.x;
-            this.y = existing.y;
-          } else {
-            const randomX = Math.floor((Math.random() * space.width) / 16);
-            const randomY = Math.floor((Math.random() * space.height) / 16);
-            const created = await this.service.createPlayer({
-              userId,
-              spaceId,
-              x: randomX,
-              y: randomY,
-            });
-            this.x = created.x;
-            this.y = created.y;
-          }
-
-          console.log(this.x, this.y);
-
-          RoomManager.getInstance().addUser(spaceId, this);
-
-          this.send({
-            type: "space-joined",
-            payload: {
-              id: this.id,
-              userId: this.userId,
-              spawn: {
-                x: this.x,
-                y: this.y,
+            const space = await client.space.findFirst({
+              where: {
+                id: spaceId,
               },
-              users:
-                RoomManager.getInstance()
-                  .rooms.get(spaceId)
-                  ?.filter((x) => x.id !== this.id)
-                  ?.map((u) => ({ id: u.id, x: u.x, y: u.y })) ?? [],
-            }, //we made a change here to include the coordinates of other users on spawning
-          });
+            });
+            if (!space) {
+              this.ws.close();
+              return;
+            }
+            this.spaceId = spaceId;
 
-          RoomManager.getInstance().broadcast(
-            {
-              type: "user-joined",
+            const name = await client.user.findFirst({
+              where: {
+                id: userId,
+              },
+            });
+            if (!name) {
+              this.ws.close();
+              return;
+            }
+            this.name = name.username;
+
+            const existingUser = RoomManager.getInstance().findUser(
+              userId,
+              spaceId
+            );
+
+            if (existingUser) {
+              existingUser.send({
+                type: "new-tab",
+              });
+              existingUser.cleanup();
+            }
+
+            const existing = await this.service.findPlayer({ userId, spaceId });
+
+            if (existing) {
+              this.x = existing.x;
+              this.y = existing.y;
+            } else {
+              const randomX = Math.floor((Math.random() * space.width) / 16);
+              const randomY = Math.floor((Math.random() * space.height) / 16);
+              const created = await this.service.createPlayer({
+                userId,
+                spaceId,
+                x: randomX,
+                y: randomY,
+              });
+              this.x = created.x;
+              this.y = created.y;
+            }
+
+            console.log(this.x, this.y);
+
+            RoomManager.getInstance().addUser(spaceId, this);
+
+            this.send({
+              type: "space-joined",
               payload: {
                 id: this.id,
-                x: this.x,
-                y: this.y,
-              },
-            },
-            this,
-            this.spaceId!
-          );
-
-          this.startSaveInterval();
-          }
-
-          break;
-        case "move": {
-          const moveX = parsedData.payload.x;
-          const moveY = parsedData.payload.y;
-          const xDisplacement = Math.abs(this.x - moveX);
-          const yDisplacement = Math.abs(this.y - moveY);
-          const animation = parsedData.payload.animation;
-
-          const EPS = 0.001;
-
-          const withinX =
-            xDisplacement <= 1 + EPS && Math.abs(yDisplacement) <= EPS;
-
-          const withinY =
-            yDisplacement <= 1 + EPS && Math.abs(xDisplacement) <= EPS;
-
-          if (
-            withinX ||
-            withinY
-            //here we can do the verification if the made move was legal or not
-          ) {
-            this.x = moveX;
-            this.y = moveY;
-            this.animation = animation;
+                userId: this.userId,
+                userName: this.name,
+                spawn: {
+                  x: this.x,
+                  y: this.y,
+                },
+                users:
+                  RoomManager.getInstance()
+                    .rooms.get(spaceId)
+                    ?.filter((x) => x.id !== this.id)
+                    ?.map((u) => ({ id: u.id, x: u.x, y: u.y })) ?? [],
+              }, //we made a change here to include the coordinates of other users on spawning
+            });
 
             RoomManager.getInstance().broadcast(
               {
-                type: "movement",
+                type: "user-joined",
                 payload: {
                   id: this.id,
                   x: this.x,
                   y: this.y,
-                  animation: this.animation,
                 },
               },
               this,
               this.spaceId!
             );
 
-            this.runProximity();
-
-            return;
+            this.startSaveInterval();
           }
 
-          this.send({
-            type: "movement-rejected",
-            payload: {
-              id: this.id,
-              x: this.x,
-              y: this.y,
-            },
-          });
-        }
+          break;
+        case "move":
+          {
+            const moveX = parsedData.payload.x;
+            const moveY = parsedData.payload.y;
+            const xDisplacement = Math.abs(this.x - moveX);
+            const yDisplacement = Math.abs(this.y - moveY);
+            const animation = parsedData.payload.animation;
+
+            const EPS = 0.001;
+
+            const withinX =
+              xDisplacement <= 1 + EPS && Math.abs(yDisplacement) <= EPS;
+
+            const withinY =
+              yDisplacement <= 1 + EPS && Math.abs(xDisplacement) <= EPS;
+
+            if (
+              withinX ||
+              withinY
+              //here we can do the verification if the made move was legal or not
+            ) {
+              this.x = moveX;
+              this.y = moveY;
+              this.animation = animation;
+
+              RoomManager.getInstance().broadcast(
+                {
+                  type: "movement",
+                  payload: {
+                    id: this.id,
+                    x: this.x,
+                    y: this.y,
+                    animation: this.animation,
+                  },
+                },
+                this,
+                this.spaceId!
+              );
+
+              this.runProximity();
+
+              return;
+            }
+
+            this.send({
+              type: "movement-rejected",
+              payload: {
+                id: this.id,
+                x: this.x,
+                y: this.y,
+              },
+            });
+          }
           break;
 
-        case "run-proximity": {
-          this.runProximity();
-        }
-        break;
+        case "run-proximity":
+          {
+            this.runProximity();
+          }
+          break;
 
-        case "send-message-request": {
-          
-          const userIds:string[] = parsedData.payload.users
-       
-          const messageReqUsers = userIds
-            .map((id) =>
-              RoomManager.getInstance().findUserById(id, this.spaceId!)
-            )
-            .filter((u):u is User=> u !== null);
-      
-          messageReqUsers?.forEach((u) => {
-            u.send({
-              type:"message-request",
-              payload:{
-                id: this.id,
-                userId: this.userId,
-                
-              }
-            })
-          })
+        case "send-message-request":
+          {
+            const userIds: string[] = parsedData.payload.users;
 
-        }
-        break;
+            const messageReqUsers = userIds
+              .map((id) =>
+                RoomManager.getInstance().findUserById(id, this.spaceId!)
+              )
+              .filter((u): u is User => u !== null);
 
+            messageReqUsers?.forEach((u) => {
+              u.send({
+                type: "message-request",
+                payload: {
+                  id: this.id,
+                  userId: this.userId,
+                },
+              });
+            });
+          }
+          break;
 
+        case "message-request-accept":
+          {
+            const userIds: string[] = parsedData.payload.users;
 
-        case "message-request-accept": {
+            const acceptedUsers = userIds
+              .map((id) =>
+                RoomManager.getInstance().findUserById(id, this.spaceId!)
+              )
+              .filter((u): u is User => u !== null);
 
-          const users: string[] = parsedData.payload.users
+            acceptedUsers.forEach((u) => {
+              u.send({
+                type: "request-accepted",
+                payload: {
+                  users: [this.id],
+                },
+              });
+            });
 
-          const acceptedUsers = users.map((id) => RoomManager.getInstance().findUserById(id, this.spaceId!)).filter((u): u is User => u!== null)
+            //here we will create a new session and assign a session id
 
-          acceptedUsers.forEach((u) => {
-            u.send({
-              type:'request-accepted',
-              payload: {
-                users: [this.id]
-              }
-            })
-          })
-        }
-        break;
+            const sessionUsers = [...acceptedUsers, this];
+
+            const sessionId = getRandomString(10);
+
+            this.sessionId = sessionId;
+
+            sessionUsers.forEach((u) => {
+              SessionManager.getInstance().addUser(sessionId, u);
+            });
+
+            sessionUsers.forEach((u) => {
+              u.send({
+                type: "chat-session",
+                payload: {
+                  sessionId: sessionId,
+                },
+              });
+            });
+          }
+          break;
+
+        case "chat-message":
+          {
+            const { sessionId, message, userName } = parsedData.payload;
+
+            console.log("message received on server");
+
+            SessionManager.getInstance().broadcast(
+              {
+                type: "inbox-message",
+                payload: {
+                  userName: userName,
+                  text: message,
+                },
+              },
+              this,
+              sessionId
+            );
+          }
+          break;
       }
     });
   }
@@ -301,11 +361,11 @@ export class User {
 
     RoomManager.getInstance().broadcast(
       {
-      type: "proximity-leave",
-      payload: {
-        users: [this.id],
+        type: "proximity-leave",
+        payload: {
+          users: [this.id],
+        },
       },
-    },
       this,
       this.spaceId!
     );
@@ -332,6 +392,8 @@ export class User {
         users: usersLeft,
       },
     });
+
+    this.sessionProximity(usersLeft);
   }
 
   proximity(a: Set<any>, b: Set<any>) {
@@ -360,5 +422,28 @@ export class User {
 
     this.nearbyUsers = b;
   }
-}
 
+  sessionProximity(usersLeft: string[]) {
+    if (!this.sessionId) return;
+
+    const session = SessionManager.getInstance().sessions.get(this.sessionId);
+
+    if (!session) return;
+
+    session.forEach((user) => {
+      if (usersLeft.includes(user.id)) {
+        SessionManager.getInstance().removeUser(user, this.sessionId!);
+      }
+    });
+
+    if (session?.length < 2) {
+      console.log("everyone left the chat");
+
+      this.send({
+        type: "session-ended",
+      });
+
+      SessionManager.getInstance().removeUser(this, this.sessionId);
+    }
+  }
+}

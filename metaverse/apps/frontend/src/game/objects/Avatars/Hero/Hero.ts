@@ -22,12 +22,10 @@ import {
 import { walls } from "../../../collisions/walls";
 import { events } from "../../../core/Events";
 import type React from "react";
-import { AcceptBubble} from "../../AccRejBubble/AcceptBubble";
-import {RejectBubble} from "../../AccRejBubble/RejectBubble";
-
+import { AcceptBubble } from "../../AccRejBubble/AcceptBubble";
+import { RejectBubble } from "../../AccRejBubble/RejectBubble";
 
 export class Hero extends GameObject {
-
   id: string;
   body: Sprite;
   facingDirection: string;
@@ -77,13 +75,12 @@ export class Hero extends GameObject {
   ) {
     super(new Vector2(x, y));
 
-    this.id = id
+    this.id = id;
 
     this.webSocketConnection = options.ws;
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
     this.positionKey = options.positionKey;
-    
 
     this.enableMsg = false;
     this.hasMessage = false;
@@ -158,9 +155,8 @@ export class Hero extends GameObject {
 
     events.on("ACCEPT_DECLINE_BUBBLES_OFF", this, (data) => {
       this.acceptBubble?.disable();
-     
+
       this.rejectBubble?.disable();
-      
     });
   }
 
@@ -349,17 +345,11 @@ export class Hero extends GameObject {
   }
 
   heroBubbles() {
-
-    
-
-    if (this.acceptedRequestsRef?.current.includes(this.id)){
-    this.enableMsg = false;
-    this.hasMessage = false;
-    this.chatBubble?.disable();
+    if (this.acceptedRequestsRef?.current.includes(this.id)) {
+      this.enableMsg = false;
+      this.hasMessage = false;
+      this.chatBubble?.disable();
     }
-    
-
-    
 
     //before sending requests
     if (this.enableMsg && !this.hasMessage) {

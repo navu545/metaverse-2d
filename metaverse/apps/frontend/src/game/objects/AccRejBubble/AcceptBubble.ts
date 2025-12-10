@@ -86,7 +86,9 @@ export class AcceptBubble extends GameObject {
       JSON.stringify({
         type:'message-request-accept',
         payload:{
-          users: this.messageRequester
+          users: [this.messageRequester],
+          group: [...this.messageRequester, this.hero.id]
+
         }
       })
     )

@@ -10,31 +10,31 @@ export class Input {
     this.heldDirections = [];
 
     document.addEventListener("keydown", (e) => {
-      if (e.code === "ArrowUp" || e.code === "KeyW") {
+      if (e.code === "ArrowUp" ) {
         this.onArrowPressed(UP);
       }
-      if (e.code === "ArrowDown" || e.code === "KeyS") {
+      if (e.code === "ArrowDown" ) {
         this.onArrowPressed(DOWN);
       }
-      if (e.code === "ArrowLeft" || e.code === "KeyA") {
+      if (e.code === "ArrowLeft" ) {
         this.onArrowPressed(LEFT);
       }
-      if (e.code === "ArrowRight" || e.code === "KeyD") {
+      if (e.code === "ArrowRight" ) {
         this.onArrowPressed(RIGHT);
       }
     });
 
     document.addEventListener("keyup", (e) => {
-      if (e.code === "ArrowUp" || e.code === "KeyW") {
+      if (e.code === "ArrowUp" ) {
         this.onArrowReleased(UP);
       }
-      if (e.code === "ArrowDown" || e.code === "KeyS") {
+      if (e.code === "ArrowDown" ) {
         this.onArrowReleased(DOWN);
       }
-      if (e.code === "ArrowLeft" || e.code === "KeyA") {
+      if (e.code === "ArrowLeft" ) {
         this.onArrowReleased(LEFT);
       }
-      if (e.code === "ArrowRight" || e.code === "KeyD") {
+      if (e.code === "ArrowRight" ) {
         this.onArrowReleased(RIGHT);
       }
     });

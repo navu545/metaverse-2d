@@ -1,9 +1,20 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { startGame } from "../game";
 import { makeASpace } from "../httpModule/testApi";
 import { connectWS } from "../wsModule/wsConnect";
+import ChatBox from "../components/Chatbox";
+
+declare global {
+  interface Window {
+    ws?: WebSocket;
+  }
+}
 
 export default function Arena() {
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -17,6 +28,8 @@ export default function Arena() {
   const positionKeyRef = useRef<string>("");
 
   const userIdRef = useRef<string>("");
+
+  const userNameRef = useRef<string>("");
 
   const remotePlayersRef = useRef<
     Map<string, { x: number; y: number; animation?: string }>
@@ -38,6 +51,7 @@ export default function Arena() {
 
   const acceptedRequestsRef = useRef<string[]>([]);
 
+  const sessionIdRef = useRef<string>("");
 
   useEffect(() => {
     const init = async () => {
@@ -51,180 +65,213 @@ export default function Arena() {
         //connect to ws
         const ws = await connectWS("cmifpn9rz0521vbbcevoc6mde", adminToken);
 
+        setWs(ws);
+
         //save the ws in useRef
         wsRef.current = ws;
+
+        window.ws = ws;
 
         //attaching listeners
         ws.onmessage = (event) => {
           const msg = JSON.parse(event.data);
 
           switch (msg.type) {
-            case "space-joined": {
-              const { id, spawn, userId, users } = msg.payload;
+            case "space-joined":
+              {
+                const { id, spawn, userId, users, userName } = msg.payload;
 
-              userIdRef.current = userId;
+                userIdRef.current = userId;
 
-              localPlayerRef.current = {
-                id: id,
-                x: spawn.x,
-                y: spawn.y,
-              };
+                userNameRef.current = userName;
+                setUserName(userName);
 
-              //create a map to save the other users recieved info
-              const remoteMap = new Map();
+                localPlayerRef.current = {
+                  id: id,
+                  x: spawn.x,
+                  y: spawn.y,
+                };
 
-              users.forEach((u: { id: string; x: number; y: number }) => {
-                remoteMap.set(u.id, { x: u.x, y: u.y });
-              });
+                //create a map to save the other users recieved info
+                const remoteMap = new Map();
 
-              //save it
-              remotePlayersRef.current = remoteMap;
+                users.forEach((u: { id: string; x: number; y: number }) => {
+                  remoteMap.set(u.id, { x: u.x, y: u.y });
+                });
 
-              stopGameRef.current = startGame(
-                canvas,
-                wsRef.current!,
-                localPlayerRef,
-                remotePlayersRef,
-                positionKeyRef,
-                proximityUserIdsRef,
-                proximityUserLeftRef,
-                acceptRef,
-                rejectRef,
-                messageRequesterRef,
-                acceptedRequestsRef
-              );
+                //save it
+                remotePlayersRef.current = remoteMap;
 
-              
-            }
-            break;
-
-            case "movement": {
-              const { id, x, y, animation } = msg.payload;
-
-              if (id !== localPlayerRef.current?.id) {
-                remotePlayersRef.current.set(id, { x, y, animation });
-              }
-
-              //trigger move here to run proximity check
-
-              wsRef.current!.send(
-                JSON.stringify({
-                  type: "run-proximity",
-                })
-              );
-
-              
-            }
-            break;
-
-            case "movement-rejected": {
-              const { id, x, y } = msg.payload;
-
-              if (id === localPlayerRef.current?.id) {
-                localPlayerRef.current!.x = x;
-                localPlayerRef.current!.y = y;
-              }
-              
-            }
-            break;
-
-            case "user-joined": {
-              const { id, x, y } = msg.payload;
-              remotePlayersRef.current.set(id, { x, y });
-              
-            }
-            break;
-
-            case "user-left": {
-              console.log("user left fired");
-              const { id } = msg.payload;
-              remotePlayersRef.current.delete(id);
-
-              
-            }
-            break;
-
-            case "new-tab": {
-              if (!stopGameRef.current) {
-                return;
-              }
-              const stopGame = stopGameRef.current;
-              stopGame();
-              
-            }
-            break;
-
-            case "proximity-enter": {
-              console.log("user entered in proximity");
-              const { users } = msg.payload;
-              const leavingSet = new Set(users);
-
-              proximityUserLeftRef.current =
-                proximityUserLeftRef.current.filter(
-                  (id) => !leavingSet.has(id)
+                stopGameRef.current = startGame(
+                  canvas,
+                  wsRef.current!,
+                  localPlayerRef,
+                  remotePlayersRef,
+                  positionKeyRef,
+                  proximityUserIdsRef,
+                  proximityUserLeftRef,
+                  acceptRef,
+                  rejectRef,
+                  messageRequesterRef,
+                  acceptedRequestsRef
                 );
+              }
+              break;
 
-              proximityUserIdsRef.current = users;
-              
-            }
-            break;
+            case "movement":
+              {
+                const { id, x, y, animation } = msg.payload;
 
-            case "proximity-leave": {
-              console.log("user left from proximity");
+                if (id !== localPlayerRef.current?.id) {
+                  remotePlayersRef.current.set(id, { x, y, animation });
+                }
 
-              const { users } = msg.payload;
-              const leavingSet = new Set(users);
+                //trigger move here to run proximity check
 
-              proximityUserIdsRef.current = proximityUserIdsRef.current.filter(
-                (id) => !leavingSet.has(id)
-              );
+                wsRef.current!.send(
+                  JSON.stringify({
+                    type: "run-proximity",
+                  })
+                );
+              }
+              break;
 
-              proximityUserLeftRef.current = users;
+            case "movement-rejected":
+              {
+                const { id, x, y } = msg.payload;
 
-              messageRequesterRef.current = messageRequesterRef.current.filter(
-                (id) => !leavingSet.has(id)
-              );
+                if (id === localPlayerRef.current?.id) {
+                  localPlayerRef.current!.x = x;
+                  localPlayerRef.current!.y = y;
+                }
+              }
+              break;
 
-              acceptedRequestsRef.current = acceptedRequestsRef.current.filter(
-                (id) => !leavingSet.has(id)
-              );
+            case "user-joined":
+              {
+                const { id, x, y } = msg.payload;
+                remotePlayersRef.current.set(id, { x, y });
+              }
+              break;
 
+            case "user-left":
+              {
+                console.log("user left fired");
+                const { id } = msg.payload;
+                remotePlayersRef.current.delete(id);
+              }
+              break;
 
-              acceptRef.current = false;
-              rejectRef.current = false;
-              
-            }
-            break;
+            case "new-tab":
+              {
+                if (!stopGameRef.current) {
+                  return;
+                }
+                const stopGame = stopGameRef.current;
+                stopGame();
+              }
+              break;
 
-            case "message-request": {
-              console.log("message request received")
+            case "proximity-enter":
+              {
+                console.log("user entered in proximity");
+                const { users } = msg.payload;
+                const leavingSet = new Set(users);
 
-              const {id, userId} = msg.payload
+                proximityUserLeftRef.current =
+                  proximityUserLeftRef.current.filter(
+                    (id) => !leavingSet.has(id)
+                  );
 
-              messageRequesterRef.current = [
-                ...messageRequesterRef.current,
-                id,
-              ];
+                proximityUserIdsRef.current = users;
+              }
+              break;
 
-              if (proximityUserIdsRef.current.includes(id)) {
-                acceptRef.current = true;
-                rejectRef.current = true;
-              } 
+            case "proximity-leave":
+              {
+                console.log("user left from proximity");
 
+                const { users } = msg.payload;
+                const leavingSet = new Set(users);
 
-            }
-            break;
+                proximityUserIdsRef.current =
+                  proximityUserIdsRef.current.filter(
+                    (id) => !leavingSet.has(id)
+                  );
 
-            case "request-accepted": {
-              const {users} = msg.payload 
+                proximityUserLeftRef.current = users;
 
-              console.log('your request was accepted')
+                messageRequesterRef.current =
+                  messageRequesterRef.current.filter(
+                    (id) => !leavingSet.has(id)
+                  );
 
-              acceptedRequestsRef.current = [...acceptedRequestsRef.current, ...users]
+                acceptedRequestsRef.current =
+                  acceptedRequestsRef.current.filter(
+                    (id) => !leavingSet.has(id)
+                  );
 
-            }
-            break;
+                acceptRef.current = false;
+                rejectRef.current = false;
+              }
+              break;
 
+            case "message-request":
+              {
+                console.log("message request received");
+
+                const { id, userId } = msg.payload;
+
+                messageRequesterRef.current = [
+                  ...messageRequesterRef.current,
+                  id,
+                ];
+
+                if (proximityUserIdsRef.current.includes(id)) {
+                  acceptRef.current = true;
+                  rejectRef.current = true;
+                }
+              }
+              break;
+
+            case "request-accepted":
+              {
+                const { users } = msg.payload;
+
+                console.log("your request was accepted");
+
+                acceptedRequestsRef.current = [
+                  ...acceptedRequestsRef.current,
+                  ...users,
+                ];
+              }
+              break;
+
+            case "chat-session":
+              {
+                const { sessionId } = msg.payload;
+
+                sessionIdRef.current = sessionId;
+
+                setSessionId(sessionId);
+
+                console.log("sessionId received", sessionId);
+              }
+              break;
+
+            case "inbox-message":
+              {
+                const { text } = msg.payload;
+
+                console.log("message received", text);
+              }
+              break;
+
+            case "session-ended":
+              {
+                console.log("everyone left chat");
+              }
+              break;
           }
         };
       } catch (err) {
@@ -239,11 +286,16 @@ export default function Arena() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={320}
-      height={180}
-      style={{ border: "1px solid black" }}
-    />
+    <div>
+      <canvas
+        ref={canvasRef}
+        width={320}
+        height={180}
+        style={{ border: "1px solid black" }}
+      />
+      {ws && (
+        <ChatBox ws={ws} sessionId={sessionId} userName={userName}></ChatBox>
+      )}
+    </div>
   );
 }
