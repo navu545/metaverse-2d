@@ -25,7 +25,8 @@ export function startGame(
   acceptRef: React.RefObject<boolean>,
   rejectRef: React.RefObject<boolean>,
   messageRequesterRef: React.RefObject<string[]>,
-  acceptedRequestsRef: React.RefObject<string[]>
+  acceptedRequestsRef: React.RefObject<string[]>,
+  rejectedRequestRef: React.RefObject<string[]>
 ) {
   canvas?.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -42,7 +43,7 @@ export function startGame(
     const worldX = canvasX - camera.position.x;
     const worldY = canvasY - camera.position.y;
 
-    console.log("click detected");
+  
 
     events.emit("CLICK", { x: worldX, y: worldY });
   });
@@ -73,7 +74,6 @@ export function startGame(
       remoteHero: false,
       ws: ws,
       proximityUserIdsRef: proximityUserIdsRef,
-      
     }
   );
   mainScene.addChild(hero);
@@ -86,7 +86,7 @@ export function startGame(
         const y = props.y;
         const remoteAnimation = props.animation;
 
-        const remoteHero = new Hero(gridCells(x), gridCells(y),playerId, {
+        const remoteHero = new Hero(gridCells(x), gridCells(y), playerId, {
           remoteHero: true,
           animation: remoteAnimation,
           ws: ws,
@@ -95,7 +95,7 @@ export function startGame(
           rejectRef: rejectRef,
           messageRequesterRef: messageRequesterRef,
           acceptedRequestsRef: acceptedRequestsRef,
-          
+          rejectedRequestRef: rejectedRequestRef,
         });
 
         mainScene.addChild(remoteHero);
@@ -116,7 +116,8 @@ export function startGame(
           hero.acceptRef = acceptRef;
           hero.rejectRef = rejectRef;
           hero.messageRequesterRef = messageRequesterRef;
-          hero.acceptedRequestsRef = acceptedRequestsRef
+          hero.acceptedRequestsRef = acceptedRequestsRef;
+          hero.rejectedRequestRef = rejectedRequestRef;
         }
       }
     }
@@ -136,7 +137,7 @@ export function startGame(
       if (remoteHeroObjects.has(userId)) {
         const remoteHero = remoteHeroObjects.get(userId);
 
-        if (!acceptRef.current ) {
+        if (!acceptRef.current) {
           remoteHero!.enableMsg = true;
         }
       }

@@ -55,8 +55,6 @@ export class User {
 
             this.userId = userId;
 
-            console.log(userId);
-
             const space = await client.space.findFirst({
               where: {
                 id: spaceId,
@@ -108,8 +106,6 @@ export class User {
               this.x = created.x;
               this.y = created.y;
             }
-
-            console.log(this.x, this.y);
 
             RoomManager.getInstance().addUser(spaceId, this);
 
@@ -235,11 +231,15 @@ export class User {
           {
             const userIds: string[] = parsedData.payload.users;
 
+     
+
             const acceptedUsers = userIds
               .map((id) =>
                 RoomManager.getInstance().findUserById(id, this.spaceId!)
               )
               .filter((u): u is User => u !== null);
+
+      
 
             acceptedUsers.forEach((u) => {
               u.send({
@@ -256,10 +256,9 @@ export class User {
 
             const sessionId = getRandomString(10);
 
-            this.sessionId = sessionId;
-
             sessionUsers.forEach((u) => {
               SessionManager.getInstance().addUser(sessionId, u);
+              u.sessionId = sessionId;
             });
 
             sessionUsers.forEach((u) => {
@@ -267,17 +266,34 @@ export class User {
                 type: "chat-session",
                 payload: {
                   sessionId: sessionId,
+                  numberUsers: sessionUsers.length,
                 },
               });
             });
           }
           break;
 
+          case "message-request-reject" :{
+
+            const{users} = parsedData.payload;
+            const rejectedUsers = users
+         
+            rejectedUsers.forEach((id:string) => {
+              const rejectedUser = RoomManager.getInstance().findUserById(id, this.spaceId!)
+              rejectedUser?.send({
+                type:'request-rejected',
+                payload:{
+                  users:[this.id]
+                }
+              })
+            })
+
+          }
+          break;
+
         case "chat-message":
           {
             const { sessionId, message, userName } = parsedData.payload;
-
-            console.log("message received on server");
 
             SessionManager.getInstance().broadcast(
               {
@@ -392,8 +408,6 @@ export class User {
         users: usersLeft,
       },
     });
-
-    this.sessionProximity(usersLeft);
   }
 
   proximity(a: Set<any>, b: Set<any>) {
@@ -403,6 +417,8 @@ export class User {
     for (const user of a) {
       if (!b.has(user)) {
         usersLeft.push(user);
+
+        this.sessionProximityFunction(user);
       }
     }
 
@@ -423,27 +439,55 @@ export class User {
     this.nearbyUsers = b;
   }
 
-  sessionProximity(usersLeft: string[]) {
+  sessionProximityFunction(userId: string) {
     if (!this.sessionId) return;
 
-    const session = SessionManager.getInstance().sessions.get(this.sessionId);
+    const ourSessionList = SessionManager.getInstance().sessions.get(
+      this.sessionId
+    );
 
-    if (!session) return;
+    if (!ourSessionList) return;
 
-    session.forEach((user) => {
-      if (usersLeft.includes(user.id)) {
-        SessionManager.getInstance().removeUser(user, this.sessionId!);
-      }
+    SessionManager.getInstance().removeUser(this, this.sessionId);
+
+    this.send({
+      type: "session-ended",
     });
 
-    if (session?.length < 2) {
-      console.log("everyone left the chat");
+    const user = SessionManager.getInstance().findUserById(
+      userId,
+      this.sessionId
+    );
 
-      this.send({
-        type: "session-ended",
+    this.sessionId = undefined;
+
+    if (!user || !user.sessionId) {
+      return;
+    }
+
+    const userSessionList = SessionManager.getInstance().sessions.get(
+      user.sessionId
+    );
+
+    if (!userSessionList) return;
+
+    if (userSessionList.length < 2) {
+      user.send({
+        type: "everyone-left-chat",
       });
 
-      SessionManager.getInstance().removeUser(this, this.sessionId);
+      user.sessionId = undefined;
+    }
+
+    if (userSessionList.length > 1) {
+      user.send({
+        type: "user-left-chat",
+        payload: {
+          userId: this.id,
+          userName: this.name,
+          text: "left the chat",
+        },
+      });
     }
   }
 }

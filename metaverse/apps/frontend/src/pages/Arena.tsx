@@ -3,6 +3,7 @@ import { startGame } from "../game";
 import { makeASpace } from "../httpModule/testApi";
 import { connectWS } from "../wsModule/wsConnect";
 import ChatBox from "../components/Chatbox";
+import { DebugOverlay } from "../components/DebugOverlay";
 
 declare global {
   interface Window {
@@ -12,8 +13,9 @@ declare global {
 
 export default function Arena() {
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [sessionId, setSessionId] = useState<string>("");
+  const [sessionId, setSessionId] = useState<string|null>(null);
   const [userName, setUserName] = useState<string>("");
+  const [sessionUsersNumber, setSessionUsersNumber] = useState<number>(0);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -51,7 +53,11 @@ export default function Arena() {
 
   const acceptedRequestsRef = useRef<string[]>([]);
 
-  const sessionIdRef = useRef<string>("");
+  const rejectedRequestRef = useRef<string[]>([]);
+
+  const sessionIdRef = useRef<string|null>(null);
+
+  
 
   useEffect(() => {
     const init = async () => {
@@ -113,7 +119,8 @@ export default function Arena() {
                   acceptRef,
                   rejectRef,
                   messageRequesterRef,
-                  acceptedRequestsRef
+                  acceptedRequestsRef,
+                  rejectedRequestRef
                 );
               }
               break;
@@ -174,7 +181,7 @@ export default function Arena() {
 
             case "proximity-enter":
               {
-                console.log("user entered in proximity");
+                
                 const { users } = msg.payload;
                 const leavingSet = new Set(users);
 
@@ -189,7 +196,6 @@ export default function Arena() {
 
             case "proximity-leave":
               {
-                console.log("user left from proximity");
 
                 const { users } = msg.payload;
                 const leavingSet = new Set(users);
@@ -247,9 +253,23 @@ export default function Arena() {
               }
               break;
 
+              case "request-rejected":{
+                console.log('your request was rejected')
+
+                const { users } = msg.payload;
+
+                rejectedRequestRef.current = [
+                  ...rejectedRequestRef.current,
+                  ...users,
+                ];
+              }
+              break;
+
             case "chat-session":
               {
-                const { sessionId } = msg.payload;
+                const { sessionId, numberUsers } = msg.payload;
+
+                setSessionUsersNumber(numberUsers);
 
                 sessionIdRef.current = sessionId;
 
@@ -268,10 +288,31 @@ export default function Arena() {
               break;
 
             case "session-ended":
-              {
-                console.log("everyone left chat");
+              { 
+                console.log('you left the chat')
+                setSessionId(null)
+                setSessionUsersNumber(0)
               }
               break;
+
+            case "everyone-left-chat":
+              {
+                console.log('everyone left the chat')
+                setSessionId(null)
+                setSessionUsersNumber(0);
+              }  
+              break;
+
+            case "user-left-chat":{
+
+              const {userId, userName} = msg.payload;
+
+              console.log(userName, 'left the chat')
+
+              setSessionUsersNumber(prev => prev - 1);
+
+            }  
+
           }
         };
       } catch (err) {
@@ -293,9 +334,12 @@ export default function Arena() {
         height={180}
         style={{ border: "1px solid black" }}
       />
-      {ws && (
+      {ws && sessionId && (
         <ChatBox ws={ws} sessionId={sessionId} userName={userName}></ChatBox>
       )}
+      <div>
+        <DebugOverlay />
+      </div>
     </div>
   );
 }

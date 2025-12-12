@@ -60,7 +60,7 @@ export class RoomManager {
 
     if(!room) return null;
 
-    return room.find((u)=> u.id == id) ?? null;
+    return room.find((u)=> u.id === id) ?? null;
   }
 
   public findNearbyPlayers(user: User, spaceId: string, radius: number) {

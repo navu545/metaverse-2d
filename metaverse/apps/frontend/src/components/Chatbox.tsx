@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 
-export default function ChatBox({ ws, sessionId, userName }: { ws: WebSocket, sessionId: string, userName:string }) {
+export default function ChatBox({ ws, sessionId, userName}: { ws: WebSocket, sessionId: string, userName:string }) {
   
     const [messages, setMessages] = useState<{name:string, text:string}[]>([]);
     const [input, setInput] = useState("");
+
 
 
     useEffect(()=>{
@@ -18,6 +19,12 @@ export default function ChatBox({ ws, sessionId, userName }: { ws: WebSocket, se
 
             if (msg.type === "inbox-message"){
                 setMessages(prev => [...prev, {name:msg.payload.userName,text:msg.payload.text}])
+            }
+
+            if(msg.type === "user-left-chat") {
+              const userName = msg.payload.userName;
+              setMessages(prev => [...prev,{name:'',text:`${userName} left the chat!`}])
+
             }
         }
 

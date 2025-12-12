@@ -71,6 +71,8 @@ export class ChatBubble extends GameObject {
 
   onClick() {
 
+    console.log('request sent')
+
     this.hero.webSocketConnection?.send(
       JSON.stringify({
         type: "send-message-request",

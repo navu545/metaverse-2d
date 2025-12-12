@@ -56,6 +56,7 @@ export class Hero extends GameObject {
 
   messageRequesterRef?: React.RefObject<string[]>;
   acceptedRequestsRef?: React.RefObject<string[]>;
+  rejectedRequestRef?: React.RefObject<string[]>;
 
   constructor(
     x: number,
@@ -71,6 +72,7 @@ export class Hero extends GameObject {
       rejectRef?: React.RefObject<boolean>;
       messageRequesterRef?: React.RefObject<string[]>;
       acceptedRequestsRef?: React.RefObject<string[]>;
+      rejectedRequestRef?: React.RefObject<string[]>;
     } = {}
   ) {
     super(new Vector2(x, y));
@@ -95,6 +97,7 @@ export class Hero extends GameObject {
     this.proximityUserIdsRef = options.proximityUserIdsRef;
     this.messageRequesterRef = options.messageRequesterRef;
     this.acceptedRequestsRef = options.acceptedRequestsRef;
+    this.rejectedRequestRef = options.acceptedRequestsRef;
 
     if (this.remoteHero) {
       const chatBubble = new ChatBubble(this);
@@ -345,7 +348,7 @@ export class Hero extends GameObject {
   }
 
   heroBubbles() {
-    if (this.acceptedRequestsRef?.current.includes(this.id)) {
+    if (this.acceptedRequestsRef?.current.includes(this.id) || this.rejectedRequestRef?.current.includes(this.id)) {
       this.enableMsg = false;
       this.hasMessage = false;
       this.chatBubble?.disable();

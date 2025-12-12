@@ -24,7 +24,19 @@ export class RejectBubble extends GameObject {
       frameSize: new Vector2(16, 16),
       position: new Vector2(0, 0),
     });
-    // this.messageRequester = messageRequesterRef.current;
+    this.messageRequesterRef = messageRequesterRef;
+
+    this.messageRequester = this.messageRequesterRef.current;
+  }
+
+  step() {
+    if (!this.messageRequesterRef) {
+      return;
+    }
+
+    if (this.messageRequester !== this.messageRequesterRef?.current) {
+      this.messageRequester = this.messageRequesterRef?.current;
+    }
   }
 
   enable() {
@@ -66,17 +78,15 @@ export class RejectBubble extends GameObject {
   onClick() {
     console.log("reject chatbubble clicked");
 
+    this.hero.webSocketConnection?.send(
+      JSON.stringify({
+        type: "message-request-reject",
+        payload: {
+          users: this.messageRequester,
+        },
+      })
+    );
+
     events.emit("ACCEPT_DECLINE_BUBBLES_OFF", false);
-
-    // this.hero.webSocketConnection?.send(
-    //   JSON.stringify({
-    //     type: "message-request-reject",
-    //     payload: {
-    //       users: this.messageRequester,
-    //     },
-    //   })
-    // );
-
-
   }
 }
