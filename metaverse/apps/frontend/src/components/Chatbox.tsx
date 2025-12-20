@@ -36,6 +36,8 @@ export default function ChatBox({ ws, sessionId, userName}: { ws: WebSocket, ses
 
     function send() {
 
+      console.log('sent sent sent')
+
         if (!ws) return; 
         if (!input.trim()) return;
 

@@ -7,62 +7,53 @@ import type { Hero } from "../Avatars/Hero/Hero";
 
 export class AcceptBubble extends GameObject {
   hero: Hero;
-  bubbleSprite: GameObject;
+  sprite: Sprite;
   eventId?: number;
-  messageRequesterRef?: React.RefObject<string[]>;
-  messageRequester: string[] | []
+
+  enabled = false;
+  isVisible = false;
 
   width = 16;
   height = 16;
 
-  constructor(hero: Hero, messageRequesterRef: React.RefObject<string[]>) {
+  constructor(hero: Hero) {
     super(new Vector2(0, 0));
     this.hero = hero;
     this.position = new Vector2(-10, -26);
-    this.bubbleSprite = new Sprite({
+
+    this.sprite = new Sprite({
       resource: resources.images.accept,
       frameSize: new Vector2(16, 16),
       position: new Vector2(0, 0),
     });
-    this.messageRequesterRef = messageRequesterRef;
 
-    this.messageRequester = this.messageRequesterRef.current
-
-  }
-
-
-  step () {
-
-    if(!this.messageRequesterRef){
-      return
-    }
-
-    if (this.messageRequester!== this.messageRequesterRef?.current){
-      this.messageRequester = this.messageRequesterRef?.current
-    }
+    this.addChild(this.sprite);
   }
 
   enable() {
-    if (!this.bubbleSprite.parent) {
-      this.addChild(this.bubbleSprite);
+    if (this.enabled) return;
+
+    this.enabled = true;
+    this.isVisible = true;
+
+    if (this.eventId == null) {
+      this.eventId = events.on("CLICK", this, (value: unknown) => {
+        const { x, y } = value as { x: number; y: number };
+        if (this.containsPoint(x, y)) {
+          this.onClick();
+        }
+      });
     }
-    if (this.eventId != null) return;
-
-    this.eventId = events.on("CLICK", this, (value: unknown) => {
-      const { x, y } = value as { x: number; y: number };
-
-      if (this.containsPoint(x, y)) {
-        this.onClick();
-      }
-    });
   }
 
   disable() {
-    if (this.bubbleSprite.parent) {
-      this.removeChild(this.bubbleSprite);
-    }
+    if (!this.enabled) return;
+
+    this.enabled = false;
+    this.isVisible = false;
+
     if (this.eventId != null) {
-      events.off(this.eventId!);
+      events.off(this.eventId);
       this.eventId = undefined;
     }
   }
@@ -78,23 +69,23 @@ export class AcceptBubble extends GameObject {
     );
   }
 
+  draw(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    if (!this.isVisible) return;
+    super.draw(ctx, x, y);
+  }
+
   onClick() {
     console.log("Accept chatbubble clicked");
 
-
     this.hero.webSocketConnection?.send(
       JSON.stringify({
-        type:'message-request-accept',
-        payload:{
-          users: this.messageRequester,
-          group: [...this.messageRequester, this.hero.id]
-
-        }
+        type: "message-request-accept",
+        payload: {
+          user: this.hero.id,
+        },
       })
-    )
+    );
 
-    events.emit("ACCEPT_DECLINE_BUBBLES_OFF", false);
-
-
+    events.emit("ACCEPT_DECLINE_BUBBLES_OFF", this.hero.id);
   }
 }

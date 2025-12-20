@@ -24,6 +24,7 @@ import { events } from "../../../core/Events";
 import type React from "react";
 import { AcceptBubble } from "../../AccRejBubble/AcceptBubble";
 import { RejectBubble } from "../../AccRejBubble/RejectBubble";
+import { LoaderBubble } from "../../ChatBubble/LoaderBubble";
 
 export class Hero extends GameObject {
   id: string;
@@ -40,23 +41,17 @@ export class Hero extends GameObject {
   remoteAnimation?: string;
   positionKey?: React.RefObject<string>;
 
-  enableMsg: boolean;
+ 
   chatBubble?: ChatBubble;
-  hasMessage: boolean;
+  loaderBubble?: LoaderBubble;
+
   proximityUserIdsRef?: React.RefObject<string[]>;
-  acceptRef?: React.RefObject<boolean>;
-  rejectRef?: React.RefObject<boolean>;
-  accept: boolean;
-  hasAccept: boolean;
-  reject: boolean;
-  hasReject: boolean;
+  
 
   acceptBubble?: AcceptBubble;
   rejectBubble?: RejectBubble;
 
-  messageRequesterRef?: React.RefObject<string[]>;
-  acceptedRequestsRef?: React.RefObject<string[]>;
-  rejectedRequestRef?: React.RefObject<string[]>;
+  
 
   constructor(
     x: number,
@@ -67,12 +62,7 @@ export class Hero extends GameObject {
       remoteHero?: boolean;
       ws?: WebSocket;
       animation?: string;
-      proximityUserIdsRef?: React.RefObject<string[]>;
-      acceptRef?: React.RefObject<boolean>;
-      rejectRef?: React.RefObject<boolean>;
-      messageRequesterRef?: React.RefObject<string[]>;
-      acceptedRequestsRef?: React.RefObject<string[]>;
-      rejectedRequestRef?: React.RefObject<string[]>;
+      
     } = {}
   ) {
     super(new Vector2(x, y));
@@ -84,28 +74,19 @@ export class Hero extends GameObject {
     this.remoteAnimation = options.animation;
     this.positionKey = options.positionKey;
 
-    this.enableMsg = false;
-    this.hasMessage = false;
-
-    this.acceptRef = options.acceptRef;
-    this.rejectRef = options.rejectRef;
-    this.hasAccept = false;
-    this.hasReject = false;
-    this.accept = false;
-    this.reject = false;
-
-    this.proximityUserIdsRef = options.proximityUserIdsRef;
-    this.messageRequesterRef = options.messageRequesterRef;
-    this.acceptedRequestsRef = options.acceptedRequestsRef;
-    this.rejectedRequestRef = options.acceptedRequestsRef;
+    
 
     if (this.remoteHero) {
       const chatBubble = new ChatBubble(this);
       this.chatBubble = chatBubble;
       this.addChild(this.chatBubble);
 
-      const acceptBubble = new AcceptBubble(this, this.messageRequesterRef!);
-      const rejectBubble = new RejectBubble(this, this.messageRequesterRef!);
+      const loaderBubble = new LoaderBubble(this);
+      this.loaderBubble = loaderBubble;
+      this.addChild(this.loaderBubble)
+
+      const acceptBubble = new AcceptBubble(this);
+      const rejectBubble = new RejectBubble(this);
       this.acceptBubble = acceptBubble;
       this.rejectBubble = rejectBubble;
       this.addChild(acceptBubble);
@@ -157,15 +138,20 @@ export class Hero extends GameObject {
     });
 
     events.on("ACCEPT_DECLINE_BUBBLES_OFF", this, (data) => {
-      this.acceptBubble?.disable();
+      if (data === this.id) {
+        this.acceptBubble?.disable();
+        this.rejectBubble?.disable();
+      }
+    });
 
-      this.rejectBubble?.disable();
+    events.on("CHATBUBBLE_OFF", this, (data) => {
+      if (data !== this.id) {
+        this.chatBubble?.disable();
+      }
     });
   }
 
   step(delta: number, root: GameObject) {
-    this.heroBubbles();
-
     if (this.itemPickupTime > 0) {
       this.workOnItemPickup(delta);
       return;
@@ -347,58 +333,47 @@ export class Hero extends GameObject {
     }
   }
 
-  heroBubbles() {
-    if (this.acceptedRequestsRef?.current.includes(this.id) || this.rejectedRequestRef?.current.includes(this.id)) {
-      this.enableMsg = false;
-      this.hasMessage = false;
-      this.chatBubble?.disable();
+  setUI(state: {
+  chatEnabled: boolean;
+  loaderEnabled: boolean;
+  showAccept: boolean;
+  showReject: boolean;
+}) {
+  if (this.chatBubble) {
+    if (state.chatEnabled && !this.chatBubble.enabled) {
+      this.chatBubble.enable();
     }
-
-    //before sending requests
-    if (this.enableMsg && !this.hasMessage) {
-      this.hasMessage = true;
-      this.chatBubble?.enable();
-    }
-
-    if (!this.enableMsg && this.hasMessage) {
-      this.hasMessage = false;
-      this.chatBubble?.disable();
-    }
-    //on receving requests
-    const latestAccept = this.acceptRef?.current ?? false;
-
-    if (latestAccept !== this.accept) {
-      this.accept = latestAccept;
-
-      if (this.accept && !this.hasAccept) {
-        this.hasAccept = true;
-        this.acceptBubble?.enable();
-
-        this.enableMsg = false;
-        this.hasMessage = false;
-        this.chatBubble?.disable();
-      }
-
-      if (!this.accept && this.hasAccept) {
-        this.hasAccept = false;
-        this.acceptBubble?.disable();
-      }
-    }
-
-    const latestReject = this.rejectRef?.current ?? false;
-
-    if (latestReject !== this.reject) {
-      this.reject = latestReject;
-
-      if (this.reject && !this.hasReject) {
-        this.hasReject = true;
-        this.rejectBubble?.enable();
-      }
-
-      if (!this.reject && this.hasReject) {
-        this.hasReject = false;
-        this.rejectBubble?.disable();
-      }
+    if (!state.chatEnabled && this.chatBubble.enabled) {
+      this.chatBubble.disable();
     }
   }
+
+  if (this.loaderBubble) {
+    if (state.loaderEnabled && !this.loaderBubble.enabled) {
+      this.loaderBubble.enable();
+    }
+    if (!state.loaderEnabled && this.loaderBubble.enabled) {
+      this.loaderBubble.disable();
+    }
+  }
+
+  if (this.acceptBubble) {
+    if (state.showAccept && !this.acceptBubble.enabled) {
+      this.acceptBubble.enable();
+    }
+    if (!state.showAccept && this.acceptBubble.enabled) {
+      this.acceptBubble.disable();
+    }
+  }
+
+  if (this.rejectBubble) {
+    if (state.showReject && !this.rejectBubble.enabled) {
+      this.rejectBubble.enable();
+    }
+    if (!state.showReject && this.rejectBubble.enabled) {
+      this.rejectBubble.disable();
+    }
+  }
+}
+
 }

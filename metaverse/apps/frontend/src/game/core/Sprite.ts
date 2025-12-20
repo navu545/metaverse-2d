@@ -14,6 +14,7 @@ interface SpriteConfig {
   scale?: number;
   position?: Vector2;
   animations?: Animations;
+  visible?:boolean;
 }
 
 
@@ -26,6 +27,7 @@ export class Sprite extends GameObject {
   scale: number;
   position: Vector2;
   animations?: Animations | null;
+  visible: boolean;
   frameMap: Map<number, Vector2>;
 
   constructor({
@@ -48,6 +50,7 @@ export class Sprite extends GameObject {
     this.scale = scale ?? 1;
     this.position = position ?? new Vector2(0, 0);
     this.animations = animations ?? null;
+    this.visible = true;
     this.buildFrameMap();
   }
 
@@ -75,6 +78,9 @@ export class Sprite extends GameObject {
   }
 
   drawImage(ctx: CanvasRenderingContext2D, x: number, y: number) {
+
+    if(!this.visible) return;
+
     if (!this.resource.isLoaded) {
       return;
     }
@@ -99,7 +105,7 @@ export class Sprite extends GameObject {
       x,
       y,
       frameSizeX * this.scale,
-      frameSizeY * this.scale
+      frameSizeY * this.scale,
     );
   }
 }

@@ -11,6 +11,8 @@ import { Camera } from "./core/Camera";
 import { Rod } from "./objects/Rod/Rod.ts";
 import { Inventory } from "./objects/Inventory/Inventory.ts";
 import { events } from "./core/Events.ts";
+import type React from "react";
+import type { InteractionState } from "../pages/Arena.tsx";
 
 export function startGame(
   canvas: HTMLCanvasElement | null,
@@ -20,13 +22,7 @@ export function startGame(
     Map<string, { x: number; y: number; animation?: string }>
   >,
   positionKey: React.RefObject<string>,
-  proximityUserIdsRef: React.RefObject<string[]>,
-  proximityUserLeftRef: React.RefObject<string[]>,
-  acceptRef: React.RefObject<boolean>,
-  rejectRef: React.RefObject<boolean>,
-  messageRequesterRef: React.RefObject<string[]>,
-  acceptedRequestsRef: React.RefObject<string[]>,
-  rejectedRequestRef: React.RefObject<string[]>
+  interactionRef: React.RefObject<InteractionState>
 ) {
   canvas?.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -42,8 +38,6 @@ export function startGame(
 
     const worldX = canvasX - camera.position.x;
     const worldY = canvasY - camera.position.y;
-
-  
 
     events.emit("CLICK", { x: worldX, y: worldY });
   });
@@ -73,7 +67,7 @@ export function startGame(
       positionKey: positionKey,
       remoteHero: false,
       ws: ws,
-      proximityUserIdsRef: proximityUserIdsRef,
+      
     }
   );
   mainScene.addChild(hero);
@@ -90,12 +84,7 @@ export function startGame(
           remoteHero: true,
           animation: remoteAnimation,
           ws: ws,
-          proximityUserIdsRef: proximityUserIdsRef,
-          acceptRef: acceptRef,
-          rejectRef: rejectRef,
-          messageRequesterRef: messageRequesterRef,
-          acceptedRequestsRef: acceptedRequestsRef,
-          rejectedRequestRef: rejectedRequestRef,
+          
         });
 
         mainScene.addChild(remoteHero);
@@ -112,13 +101,10 @@ export function startGame(
           hero.remoteHero = true;
           hero.webSocketConnection = ws;
           hero.remoteAnimation = remoteAnimation;
-          hero.proximityUserIdsRef = proximityUserIdsRef;
-          hero.acceptRef = acceptRef;
-          hero.rejectRef = rejectRef;
-          hero.messageRequesterRef = messageRequesterRef;
-          hero.acceptedRequestsRef = acceptedRequestsRef;
-          hero.rejectedRequestRef = rejectedRequestRef;
+          const ui = computeHeroUI(playerId);
+          hero.setUI(ui);
         }
+        
       }
     }
 
@@ -132,23 +118,23 @@ export function startGame(
     }
   }
 
-  function updateChatBubble() {
-    for (const userId of proximityUserIdsRef.current) {
-      if (remoteHeroObjects.has(userId)) {
-        const remoteHero = remoteHeroObjects.get(userId);
+  
+  function computeHeroUI(heroId: string) {
+    const s = interactionRef.current;
 
-        if (!acceptRef.current) {
-          remoteHero!.enableMsg = true;
-        }
-      }
+    const inProximity = s.proximity.has(heroId);
+    const hasIncoming = s.pendingIncoming.has(heroId);
+    const hasAnyPending = s.pendingIncoming.size > 0 || s.pendingOutgoing.size > 0;
+    const pendingOutgoing = s.pendingOutgoing.has(heroId)
+
+
+    return {
+      chatEnabled: inProximity && !hasAnyPending && !s.accepted.has(heroId) && !s.rejected.has(heroId),
+      loaderEnabled: inProximity && hasAnyPending && !s.accepted.has(heroId) && !s.rejected.has(heroId) && !hasIncoming && pendingOutgoing,
+      showAccept: inProximity && hasIncoming,
+      showReject: inProximity && hasIncoming
     }
 
-    for (const userId of proximityUserLeftRef.current) {
-      if (remoteHeroObjects.has(userId)) {
-        const remoteHero = remoteHeroObjects.get(userId);
-        remoteHero!.enableMsg = false;
-      }
-    }
   }
 
   const camera = new Camera();
@@ -163,7 +149,7 @@ export function startGame(
 
   const update = (delta: number) => {
     updateRemotePlayer();
-    updateChatBubble();
+   
     mainScene.stepEntry(delta, mainScene);
   };
 

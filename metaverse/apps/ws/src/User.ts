@@ -16,6 +16,11 @@ function getRandomString(length: number) {
   }
   return result;
 }
+
+
+type UserAvailability = "FREE" | "PENDING_IN" | "PENDING_OUT" | "IN_SESSION_ADMIN" | "IN_SESSION_MEMBER"
+
+
 export class User {
   public id: string;
   public userId?: string;
@@ -28,6 +33,7 @@ export class User {
   private service = new SpaceUserService();
   private nearbyUsers: Set<string> = new Set();
   public sessionId?: string;
+  public availability: UserAvailability = "FREE";
 
   constructor(private ws: WebSocket) {
     this.id = getRandomString(10);
@@ -35,6 +41,7 @@ export class User {
     this.y = 0;
     this.animation = "DOWN";
     this.initHandlers();
+  
   }
 
   initHandlers() {
@@ -182,8 +189,8 @@ export class User {
                 this,
                 this.spaceId!
               );
-
-              this.runProximity();
+              const stationary = false;
+              this.runProximity(stationary);
 
               return;
             }
@@ -201,99 +208,202 @@ export class User {
 
         case "run-proximity":
           {
-            this.runProximity();
+            const stationary = true;
+            this.runProximity(stationary);
           }
           break;
 
         case "send-message-request":
           {
-            const userIds: string[] = parsedData.payload.users;
+            const userId = parsedData.payload.user;
 
-            const messageReqUsers = userIds
-              .map((id) =>
-                RoomManager.getInstance().findUserById(id, this.spaceId!)
-              )
-              .filter((u): u is User => u !== null);
+            const messageReqUser = RoomManager.getInstance().findUserById(
+              userId,
+              this.spaceId!
+            );
 
-            messageReqUsers?.forEach((u) => {
-              u.send({
-                type: "message-request",
-                payload: {
-                  id: this.id,
-                  userId: this.userId,
-                },
+            if (!messageReqUser) return;
+
+            if (this.availability !== "FREE") {
+              return;
+            }
+
+            if (
+              messageReqUser.availability !== "FREE" &&
+              messageReqUser.availability !== "IN_SESSION_ADMIN"
+            ) {
+              this.send({
+                type: "request-rejected",
+                payload: { user: messageReqUser.id },
               });
+              return;
+            }
+
+            this.availability = "PENDING_OUT";
+            messageReqUser.availability = "PENDING_IN";
+
+            this.send({
+              type: "request-sent",
+              payload: {
+                user: userId,
+              },
             });
+
+            messageReqUser.send({
+              type: "message-request",
+              payload: {
+                id: this.id,
+                userId: this.userId,
+              },
+            });
+
+            this.broadcastAvailability()
+            messageReqUser.broadcastAvailability()
+
+            
           }
           break;
 
         case "message-request-accept":
           {
-            const userIds: string[] = parsedData.payload.users;
+            const userId: string = parsedData.payload.user;
 
-     
+            const acceptedUser = RoomManager.getInstance().findUserById(
+              userId,
+              this.spaceId!
+            );
 
-            const acceptedUsers = userIds
-              .map((id) =>
-                RoomManager.getInstance().findUserById(id, this.spaceId!)
-              )
-              .filter((u): u is User => u !== null);
+            if (!acceptedUser) return;
 
-      
+            if (
+              this.availability !== "PENDING_IN" ||
+              acceptedUser?.availability !== "PENDING_OUT"
+            )
+              return;
 
-            acceptedUsers.forEach((u) => {
-              u.send({
+            //here we will create a new session and assign a session id
+
+            if (!this.sessionId) {
+              
+
+              const sessionUsers = [acceptedUser, this];
+
+              const sessionId = getRandomString(10);
+
+              sessionUsers.forEach((u) => {
+                SessionManager.getInstance().addUser(sessionId, u);
+                u.sessionId = sessionId;
+              });
+
+              this.availability = "IN_SESSION_ADMIN";
+              acceptedUser.availability = "IN_SESSION_MEMBER";
+
+              acceptedUser.send({
                 type: "request-accepted",
                 payload: {
                   users: [this.id],
                 },
               });
-            });
 
-            //here we will create a new session and assign a session id
-
-            const sessionUsers = [...acceptedUsers, this];
-
-            const sessionId = getRandomString(10);
-
-            sessionUsers.forEach((u) => {
-              SessionManager.getInstance().addUser(sessionId, u);
-              u.sessionId = sessionId;
-            });
-
-            sessionUsers.forEach((u) => {
-              u.send({
-                type: "chat-session",
+              this.send({
+                type: "you-accepted-request",
                 payload: {
-                  sessionId: sessionId,
-                  numberUsers: sessionUsers.length,
+                  user: userId,
                 },
               });
-            });
+
+              this.broadcastAvailability();
+              acceptedUser.broadcastAvailability();
+
+              sessionUsers.forEach((u) => {
+                u.send({
+                  type: "chat-session",
+                  payload: {
+                    sessionId: sessionId,
+                    numberUsers: sessionUsers.length,
+                    chatAdmin: this.id,
+                  },
+                });
+              });
+            } else {
+
+              SessionManager.getInstance().addUser(
+                this.sessionId,
+                acceptedUser
+              );
+
+              const sessionUsers = SessionManager.getInstance().sessions.get(
+                this.sessionId
+              );
+
+              acceptedUser.sessionId = this.sessionId;
+              acceptedUser.availability = "IN_SESSION_MEMBER";
+
+              acceptedUser.send({
+                type: "chat-session",
+                payload: {
+                  sessionId: this.sessionId,
+                  numberUsers: sessionUsers!.length,
+                  chatAdmin: this.id,
+                },
+              });
+
+              this.broadcastAvailability();
+              acceptedUser.broadcastAvailability();
+
+              
+            }
           }
           break;
 
-          case "message-request-reject" :{
+        case "message-request-reject":
+          {
+            const userId = parsedData.payload.user;
 
-            const{users} = parsedData.payload;
-            const rejectedUsers = users
-         
-            rejectedUsers.forEach((id:string) => {
-              const rejectedUser = RoomManager.getInstance().findUserById(id, this.spaceId!)
-              rejectedUser?.send({
-                type:'request-rejected',
-                payload:{
-                  users:[this.id]
-                }
-              })
-            })
+            const rejectedUser = RoomManager.getInstance().findUserById(
+              userId,
+              this.spaceId!
+            );
 
+            if (!rejectedUser) return;
+
+            if (
+              this.availability !== "PENDING_IN" ||
+              rejectedUser.availability !== "PENDING_OUT"
+            ) {
+              return;
+            }
+
+            this.availability = "FREE";
+            rejectedUser.availability = "FREE";
+
+            rejectedUser.send({
+              type: "request-rejected",
+              payload: {
+                user: this.id,
+              },
+            });
+
+            this.send({
+              type: "you-rejected-request",
+              payload: {
+                user: userId,
+              },
+            });
+
+            this.broadcastAvailability();
+            rejectedUser.broadcastAvailability();
+
+            
           }
           break;
 
         case "chat-message":
-          {
+          { 
+            
             const { sessionId, message, userName } = parsedData.payload;
+
+            if (!this.sessionId || this.sessionId !== sessionId) return;
 
             SessionManager.getInstance().broadcast(
               {
@@ -312,7 +422,7 @@ export class User {
     });
   }
 
-  private runProximity() {
+  private runProximity(stationary: boolean) {
     const nearbyPlayers = RoomManager.getInstance().findNearbyPlayers(
       this,
       this.spaceId!,
@@ -323,7 +433,7 @@ export class User {
 
     const previousSet = this.nearbyUsers;
 
-    this.proximity(previousSet, currentSet);
+    this.proximity(previousSet, currentSet, stationary);
   }
 
   private startSaveInterval() {
@@ -392,38 +502,65 @@ export class User {
     this.ws.send(JSON.stringify(payload));
   }
 
-  sendProximityEnter(usersJoined: string[]) {
-    this.send({
-      type: "proximity-enter",
-      payload: {
-        users: usersJoined,
-      },
-    });
+  sendProximityEnter(usersJoined: string[], stationary: boolean) {
+    if (stationary) {
+      this.send({
+        type: "proximity-enter",
+        payload: {
+          users: usersJoined,
+          stationary: true,
+          message: "they-moved",
+        },
+      });
+    } else {
+      this.send({
+        type: "proximity-enter",
+        payload: {
+          users: usersJoined,
+          stationary: false,
+          message: "you-moved",
+        },
+      });
+    }
   }
 
-  sendProximityLeave(usersLeft: string[]) {
-    this.send({
-      type: "proximity-leave",
-      payload: {
-        users: usersLeft,
-      },
-    });
+  sendProximityLeave(usersLeft: string[], stationary: boolean) {
+    if (stationary) {
+      this.send({
+        type: "proximity-leave",
+        payload: {
+          users: usersLeft,
+          stationary: true,
+          message: "they-moved",
+        },
+      });
+    } else {
+      this.send({
+        type: "proximity-leave",
+        payload: {
+          users: usersLeft,
+          stationary: false,
+          message: "you-moved",
+        },
+      });
+    }
   }
 
-  proximity(a: Set<any>, b: Set<any>) {
+  proximity(a: Set<any>, b: Set<any>, stationary: boolean) {
+    //when we leave our own proximity function will run first, so the usersleft and joined are a result of our own movement
+
     let usersLeft = [];
     let usersJoined = [];
 
     for (const user of a) {
       if (!b.has(user)) {
         usersLeft.push(user);
-
-        this.sessionProximityFunction(user);
+        this.sessionProximityFunction(user, stationary);
       }
     }
 
     if (usersLeft.length > 0) {
-      this.sendProximityLeave(usersLeft);
+      this.sendProximityLeave(usersLeft, stationary);
     }
 
     for (const user of b) {
@@ -433,61 +570,112 @@ export class User {
     }
 
     if (usersJoined.length > 0) {
-      this.sendProximityEnter(usersJoined);
+      this.sendProximityEnter(usersJoined, stationary);
     }
 
     this.nearbyUsers = b;
   }
 
-  sessionProximityFunction(userId: string) {
+  sessionProximityFunction(userId: string, stationary: boolean) {
     if (!this.sessionId) return;
 
-    const ourSessionList = SessionManager.getInstance().sessions.get(
-      this.sessionId
-    );
+    const user = RoomManager.getInstance().findUserById(userId, this.spaceId!);
 
-    if (!ourSessionList) return;
+    if (!user?.sessionId || user.sessionId !== this.sessionId) return;
 
-    SessionManager.getInstance().removeUser(this, this.sessionId);
+    if (!stationary) {
+      //you left session or not
 
-    this.send({
-      type: "session-ended",
-    });
+      const ourSessionList = SessionManager.getInstance().sessions.get(
+        this.sessionId
+      );
 
-    const user = SessionManager.getInstance().findUserById(
-      userId,
-      this.sessionId
-    );
+      if (this.availability === "IN_SESSION_MEMBER") {
+        SessionManager.getInstance().removeUser(this, this.sessionId);
+        this.sessionId = undefined;
+        this.availability = "FREE";
+        this.broadcastAvailability();
+      }
 
-    this.sessionId = undefined;
+      if (
+        this.availability === "IN_SESSION_ADMIN" ||
+        ourSessionList?.length! < 2
+      ) {
+        if (!this.sessionId) return;
 
-    if (!user || !user.sessionId) {
-      return;
+        ourSessionList?.forEach((u) => {
+          if (!this.sessionId) return;
+          SessionManager.getInstance().removeUser(u, this.sessionId);
+          u.sessionId = undefined;
+          u.availability = "FREE";
+          u.broadcastAvailability();
+
+          u.send({
+            type: "session-ended",
+          });
+        });
+
+        
+
+        SessionManager.getInstance().sessions.delete(this.sessionId);
+        this.sessionId = undefined;
+        this.availability = "FREE";
+        this.broadcastAvailability()
+      }
     }
 
-    const userSessionList = SessionManager.getInstance().sessions.get(
-      user.sessionId
-    );
+    if (!this.sessionId) return;
 
-    if (!userSessionList) return;
+    if (stationary) {
+      //someone else left session or not
 
-    if (userSessionList.length < 2) {
-      user.send({
-        type: "everyone-left-chat",
-      });
+      const ourSessionList = SessionManager.getInstance().sessions.get(
+        this.sessionId
+      );
 
-      user.sessionId = undefined;
+      if (!ourSessionList) return;
+
+      const user = RoomManager.getInstance().findUserById(
+        userId,
+        this.spaceId!
+      );
+
+      if (user?.sessionId !== this.sessionId) return;
+
+      if (ourSessionList.length < 2) return;
+
+      if (user.availability === "IN_SESSION_MEMBER") {
+        this.send({
+          type: "user-left-chat",
+          payload: {
+            userId: user.id,
+            userName: user.name,
+            text: "left the chat",
+          },
+        });
+      }
     }
+  }
 
-    if (userSessionList.length > 1) {
-      user.send({
-        type: "user-left-chat",
+  broadcastAvailability() {
+    RoomManager.getInstance().broadcast(
+      {
+        type: "availability-update",
         payload: {
           userId: this.id,
-          userName: this.name,
-          text: "left the chat",
+          availability: this.availability,
         },
-      });
-    }
+      },
+      this,
+      this.spaceId!
+    );
+
+    this.send({
+      type: "availability-update",
+      payload: {
+        userId: this.id,
+        availability: this.availability,
+      },
+    });
   }
 }

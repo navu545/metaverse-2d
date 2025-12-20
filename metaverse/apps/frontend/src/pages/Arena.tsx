@@ -11,9 +11,17 @@ declare global {
   }
 }
 
+export type InteractionState = {
+  proximity: Set<string>;
+  pendingIncoming: Set<string>;
+  pendingOutgoing: Set<string>;
+  accepted: Set<string>;
+  rejected: Set<string>;
+}
+
 export default function Arena() {
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [sessionId, setSessionId] = useState<string|null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [sessionUsersNumber, setSessionUsersNumber] = useState<number>(0);
 
@@ -41,23 +49,16 @@ export default function Arena() {
 
   const stopGameRef = useRef<(() => void) | null>(null);
 
-  const proximityUserIdsRef = useRef<string[]>([]);
+  const interactionRef = useRef<InteractionState>({
+    proximity: new Set(),
+    pendingIncoming: new Set(),
+    pendingOutgoing: new Set(),
+    accepted: new Set(),
+    rejected: new Set(),
+  });
 
-  const proximityUserLeftRef = useRef<string[]>([]);
+  const sessionIdRef = useRef<string>(null)
 
-  const acceptRef = useRef<boolean>(false);
-
-  const rejectRef = useRef<boolean>(false);
-
-  const messageRequesterRef = useRef<string[]>([]);
-
-  const acceptedRequestsRef = useRef<string[]>([]);
-
-  const rejectedRequestRef = useRef<string[]>([]);
-
-  const sessionIdRef = useRef<string|null>(null);
-
-  
 
   useEffect(() => {
     const init = async () => {
@@ -114,13 +115,7 @@ export default function Arena() {
                   localPlayerRef,
                   remotePlayersRef,
                   positionKeyRef,
-                  proximityUserIdsRef,
-                  proximityUserLeftRef,
-                  acceptRef,
-                  rejectRef,
-                  messageRequesterRef,
-                  acceptedRequestsRef,
-                  rejectedRequestRef
+                  interactionRef
                 );
               }
               break;
@@ -133,7 +128,7 @@ export default function Arena() {
                   remotePlayersRef.current.set(id, { x, y, animation });
                 }
 
-                //trigger move here to run proximity check
+                //trigger move here to run proximity check when we are stationary
 
                 wsRef.current!.send(
                   JSON.stringify({
@@ -181,46 +176,71 @@ export default function Arena() {
 
             case "proximity-enter":
               {
-                
-                const { users } = msg.payload;
-                const leavingSet = new Set(users);
+                console.log("proximity-entered");
+                const { users, stationary } = msg.payload;
 
-                proximityUserLeftRef.current =
-                  proximityUserLeftRef.current.filter(
-                    (id) => !leavingSet.has(id)
-                  );
+                const s = interactionRef.current;
+                users.forEach((id:string) => s.proximity.add(id))
 
-                proximityUserIdsRef.current = users;
               }
               break;
 
             case "proximity-leave":
               {
+                console.log("proximity-leave");
+                const { users, stationary } = msg.payload;
 
-                const { users } = msg.payload;
-                const leavingSet = new Set(users);
+                const s = interactionRef.current;
 
-                proximityUserIdsRef.current =
-                  proximityUserIdsRef.current.filter(
-                    (id) => !leavingSet.has(id)
-                  );
-
-                proximityUserLeftRef.current = users;
-
-                messageRequesterRef.current =
-                  messageRequesterRef.current.filter(
-                    (id) => !leavingSet.has(id)
-                  );
-
-                acceptedRequestsRef.current =
-                  acceptedRequestsRef.current.filter(
-                    (id) => !leavingSet.has(id)
-                  );
-
-                acceptRef.current = false;
-                rejectRef.current = false;
+                users.forEach((id:string)=> {
+                  s.proximity.delete(id);
+                  s.pendingIncoming.delete(id);
+                  s.pendingOutgoing.delete(id);
+                  s.accepted.delete(id);
+                  s.rejected.delete(id);
+                } )
               }
               break;
+
+            case "request-sent":
+              {
+
+                const user: string = msg.payload.user;
+
+                const s = interactionRef.current
+
+                s.pendingOutgoing.add(user);
+
+              }
+              break;
+
+            case "you-rejected-request":
+              {
+                console.log('you rejected request')
+
+                const id = msg.payload.user;
+
+                const s = interactionRef.current;
+
+                s.rejected.add(id)
+                s.pendingIncoming.delete(id)
+                s.pendingOutgoing.delete(id)
+                
+              }
+              break;
+
+            case "you-accepted-request": {
+
+              const id = msg.payload.user;
+
+              const s = interactionRef.current;
+
+              s.accepted.add(id)
+              s.pendingIncoming.delete(id);
+              s.pendingOutgoing.delete(id)
+              
+            } 
+            break; 
 
             case "message-request":
               {
@@ -228,15 +248,12 @@ export default function Arena() {
 
                 const { id, userId } = msg.payload;
 
-                messageRequesterRef.current = [
-                  ...messageRequesterRef.current,
-                  id,
-                ];
 
-                if (proximityUserIdsRef.current.includes(id)) {
-                  acceptRef.current = true;
-                  rejectRef.current = true;
-                }
+                const s = interactionRef.current;
+
+                s.pendingIncoming.add(id)
+
+                
               }
               break;
 
@@ -246,22 +263,32 @@ export default function Arena() {
 
                 console.log("your request was accepted");
 
-                acceptedRequestsRef.current = [
-                  ...acceptedRequestsRef.current,
-                  ...users,
-                ];
+                const s = interactionRef.current;
+
+                users.forEach((id:string) => {
+                  s.accepted.add(id)
+                  s.pendingIncoming.delete(id)
+                  s.pendingOutgoing.delete(id)
+                })
+
+                
               }
               break;
 
-              case "request-rejected":{
-                console.log('your request was rejected')
+            case "request-rejected":
+              {
+                console.log("your request was rejected");
 
-                const { users } = msg.payload;
+                const id = msg.payload.user;
 
-                rejectedRequestRef.current = [
-                  ...rejectedRequestRef.current,
-                  ...users,
-                ];
+                const s = interactionRef.current;
+               
+                  s.rejected.add(id);
+                  s.pendingIncoming.delete(id);
+                  s.pendingOutgoing.delete(id);
+              
+
+                
               }
               break;
 
@@ -289,30 +316,26 @@ export default function Arena() {
 
             case "session-ended":
               { 
-                console.log('you left the chat')
-                setSessionId(null)
-                setSessionUsersNumber(0)
+                const s = interactionRef.current;
+                s.pendingIncoming.clear();
+                s.pendingOutgoing.clear();
+                s.accepted.clear();
+                s.rejected.clear();
+
+                console.log("session ended");
+                setSessionId(null);
+                setSessionUsersNumber(0);
               }
               break;
 
-            case "everyone-left-chat":
-              {
-                console.log('everyone left the chat')
-                setSessionId(null)
-                setSessionUsersNumber(0);
-              }  
-              break;
 
-            case "user-left-chat":{
+            case "user-left-chat": {
+              const { userId, userName } = msg.payload;
 
-              const {userId, userName} = msg.payload;
+              console.log(userName, "left the chat");
 
-              console.log(userName, 'left the chat')
-
-              setSessionUsersNumber(prev => prev - 1);
-
-            }  
-
+              setSessionUsersNumber((prev) => prev - 1);
+            }
           }
         };
       } catch (err) {
