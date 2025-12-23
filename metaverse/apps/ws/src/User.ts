@@ -17,9 +17,12 @@ function getRandomString(length: number) {
   return result;
 }
 
-
-type UserAvailability = "FREE" | "PENDING_IN" | "PENDING_OUT" | "IN_SESSION_ADMIN" | "IN_SESSION_MEMBER"
-
+type UserAvailability =
+  | "FREE"
+  | "PENDING_IN"
+  | "PENDING_OUT"
+  | "IN_SESSION_ADMIN"
+  | "IN_SESSION_MEMBER";
 
 export class User {
   public id: string;
@@ -34,6 +37,7 @@ export class User {
   private nearbyUsers: Set<string> = new Set();
   public sessionId?: string;
   public availability: UserAvailability = "FREE";
+  public pendingInUser: string[] = [];
 
   constructor(private ws: WebSocket) {
     this.id = getRandomString(10);
@@ -41,7 +45,6 @@ export class User {
     this.y = 0;
     this.animation = "DOWN";
     this.initHandlers();
-  
   }
 
   initHandlers() {
@@ -209,6 +212,7 @@ export class User {
         case "run-proximity":
           {
             const stationary = true;
+
             this.runProximity(stationary);
           }
           break;
@@ -257,10 +261,13 @@ export class User {
               },
             });
 
-            this.broadcastAvailability()
-            messageReqUser.broadcastAvailability()
+            messageReqUser.pendingInUser = [
+              ...messageReqUser.pendingInUser,
+              this.id,
+            ];
 
-            
+            this.broadcastAvailability();
+            messageReqUser.broadcastAvailability();
           }
           break;
 
@@ -281,11 +288,13 @@ export class User {
             )
               return;
 
+            this.pendingInUser = this.pendingInUser.filter(
+              (id) => id !== userId
+            );
+
             //here we will create a new session and assign a session id
 
             if (!this.sessionId) {
-              
-
               const sessionUsers = [acceptedUser, this];
 
               const sessionId = getRandomString(10);
@@ -326,7 +335,6 @@ export class User {
                 });
               });
             } else {
-
               SessionManager.getInstance().addUser(
                 this.sessionId,
                 acceptedUser
@@ -350,8 +358,6 @@ export class User {
 
               this.broadcastAvailability();
               acceptedUser.broadcastAvailability();
-
-              
             }
           }
           break;
@@ -374,6 +380,10 @@ export class User {
               return;
             }
 
+            this.pendingInUser = this.pendingInUser.filter(
+              (id) => id !== userId
+            );
+
             this.availability = "FREE";
             rejectedUser.availability = "FREE";
 
@@ -393,14 +403,11 @@ export class User {
 
             this.broadcastAvailability();
             rejectedUser.broadcastAvailability();
-
-            
           }
           break;
 
         case "chat-message":
-          { 
-            
+          {
             const { sessionId, message, userName } = parsedData.payload;
 
             if (!this.sessionId || this.sessionId !== sessionId) return;
@@ -559,6 +566,36 @@ export class User {
       }
     }
 
+    usersLeft.forEach((id) => {
+      const user = RoomManager.getInstance().findUserById(id, this.spaceId!);
+
+      //If the leaving user sent us a req or we were the sender, we have to free them both once they lose proximity to each other
+
+      if (!user) return;
+
+      if (
+        user.availability === "PENDING_IN" ||
+        this.availability === "PENDING_IN"
+      ) {
+        if (
+          user.pendingInUser.includes(this.id) ||
+          this.pendingInUser.includes(user.id)
+        ) {
+          user.pendingInUser = user.pendingInUser.filter(
+            (id) => id !== this.id
+          );
+          this.pendingInUser = this.pendingInUser.filter(
+            (id) => id !== user.id
+          );
+
+          user.availability = "FREE";
+          this.availability = "FREE";
+          user.broadcastAvailability();
+          this.broadcastAvailability();
+        }
+      }
+    });
+
     if (usersLeft.length > 0) {
       this.sendProximityLeave(usersLeft, stationary);
     }
@@ -579,33 +616,32 @@ export class User {
   sessionProximityFunction(userId: string, stationary: boolean) {
     if (!this.sessionId) return;
 
-    const user = RoomManager.getInstance().findUserById(userId, this.spaceId!);
+    const otherUser = RoomManager.getInstance().findUserById(
+      userId,
+      this.spaceId!
+    );
 
-    if (!user?.sessionId || user.sessionId !== this.sessionId) return;
+    if (!otherUser?.sessionId || otherUser.sessionId !== this.sessionId) return;
+
+    const sessionId = this.sessionId;
+    const sessionUsers = SessionManager.getInstance().sessions.get(sessionId);
+
+    if (!sessionUsers) return;
+
+    const isAdmin = this.availability === "IN_SESSION_ADMIN";
+    const isMember = this.availability === "IN_SESSION_MEMBER";
 
     if (!stationary) {
-      //you left session or not
-
-      const ourSessionList = SessionManager.getInstance().sessions.get(
-        this.sessionId
-      );
-
-      if (this.availability === "IN_SESSION_MEMBER") {
-        SessionManager.getInstance().removeUser(this, this.sessionId);
-        this.sessionId = undefined;
-        this.availability = "FREE";
-        this.broadcastAvailability();
+      //we moved as a member
+      if (isMember) {
+        return;
       }
 
-      if (
-        this.availability === "IN_SESSION_ADMIN" ||
-        ourSessionList?.length! < 2
-      ) {
-        if (!this.sessionId) return;
-
-        ourSessionList?.forEach((u) => {
-          if (!this.sessionId) return;
-          SessionManager.getInstance().removeUser(u, this.sessionId);
+      //we moved as an admin
+      if (isAdmin) {
+        console.log("moving Admin", this.id);
+        sessionUsers.forEach((u) => {
+          SessionManager.getInstance().removeUser(u, sessionId);
           u.sessionId = undefined;
           u.availability = "FREE";
           u.broadcastAvailability();
@@ -615,43 +651,79 @@ export class User {
           });
         });
 
-        
+        SessionManager.getInstance().sessions.delete(sessionId);
 
-        SessionManager.getInstance().sessions.delete(this.sessionId);
         this.sessionId = undefined;
         this.availability = "FREE";
-        this.broadcastAvailability()
+        this.broadcastAvailability();
+
+        return;
       }
+
+      return;
     }
 
-    if (!this.sessionId) return;
+    //if we are a stationary member, do nothing as the chatadmin either moving or stationary takes care of us
+    if (isMember) {
+      return;
+    }
 
-    if (stationary) {
-      //someone else left session or not
+    //if we are a stationary observing chatadmin
+    if (isAdmin) {
+      SessionManager.getInstance().removeUser(otherUser, sessionId);
 
-      const ourSessionList = SessionManager.getInstance().sessions.get(
-        this.sessionId
-      );
+      console.log("user got kicked");
 
-      if (!ourSessionList) return;
+      otherUser.sessionId = undefined;
+      otherUser.availability = "FREE";
+      otherUser.broadcastAvailability();
 
-      const user = RoomManager.getInstance().findUserById(
-        userId,
-        this.spaceId!
-      );
+      //kick the user out
+      otherUser.send({
+        type: "session-ended",
+      });
 
-      if (user?.sessionId !== this.sessionId) return;
+      // Inform everyone
+      this.send({
+        type: "user-left-chat",
+        payload: {
+          userId: otherUser.id,
+          userName: otherUser.name,
+          text: "left the chat",
+        },
+      });
 
-      if (ourSessionList.length < 2) return;
-
-      if (user.availability === "IN_SESSION_MEMBER") {
-        this.send({
+      SessionManager.getInstance().broadcast(
+        {
           type: "user-left-chat",
           payload: {
-            userId: user.id,
-            userName: user.name,
+            userId: otherUser.id,
+            userName: otherUser.name,
             text: "left the chat",
           },
+        },
+        this,
+        sessionId
+      );
+
+      //remainingUsers just has us left
+      const remainingUsers =
+        SessionManager.getInstance().sessions.get(sessionId);
+
+      // If admin is now alone, end entire session
+      if (!remainingUsers || remainingUsers.length < 2) {
+        console.log("code does enter the remaining users block");
+
+        SessionManager.getInstance().removeUser(this, sessionId);
+
+        SessionManager.getInstance().sessions.delete(sessionId);
+
+        this.sessionId = undefined;
+        this.availability = "FREE";
+        this.broadcastAvailability();
+
+        this.send({
+          type: "session-ended",
         });
       }
     }

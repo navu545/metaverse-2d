@@ -13,11 +13,14 @@ declare global {
 
 export type InteractionState = {
   proximity: Set<string>;
-  pendingIncoming: Set<string>;
-  pendingOutgoing: Set<string>;
-  accepted: Set<string>;
-  rejected: Set<string>;
-}
+};
+
+export type UserAvailability =
+  | "FREE"
+  | "PENDING_IN"
+  | "PENDING_OUT"
+  | "IN_SESSION_ADMIN"
+  | "IN_SESSION_MEMBER";
 
 export default function Arena() {
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -49,16 +52,15 @@ export default function Arena() {
 
   const stopGameRef = useRef<(() => void) | null>(null);
 
-  const interactionRef = useRef<InteractionState>({
-    proximity: new Set(),
-    pendingIncoming: new Set(),
-    pendingOutgoing: new Set(),
-    accepted: new Set(),
-    rejected: new Set(),
-  });
+  const ourUserAvailabilityRef = useRef<UserAvailability>('FREE')
 
-  const sessionIdRef = useRef<string>(null)
+  const proximityRef = useRef<Set<string>>(new Set())
 
+  const availabilityRef = useRef<Map<string, UserAvailability>>(new Map());
+
+  const requesterRef = useRef<string|null> (null); //one who requested
+
+  const sessionIdRef = useRef<string>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -98,6 +100,7 @@ export default function Arena() {
                   x: spawn.x,
                   y: spawn.y,
                 };
+                console.log(id);
 
                 //create a map to save the other users recieved info
                 const remoteMap = new Map();
@@ -109,13 +112,22 @@ export default function Arena() {
                 //save it
                 remotePlayersRef.current = remoteMap;
 
+                users.forEach((u: { id: string; x: number; y: number }) => {
+                  availabilityRef.current.set(u.id, "FREE");
+                });
+
+                availabilityRef.current.set(id, "FREE");
+
                 stopGameRef.current = startGame(
                   canvas,
                   wsRef.current!,
                   localPlayerRef,
                   remotePlayersRef,
                   positionKeyRef,
-                  interactionRef
+                  proximityRef,
+                  availabilityRef,
+                  ourUserAvailabilityRef,
+                  requesterRef
                 );
               }
               break;
@@ -179,10 +191,10 @@ export default function Arena() {
                 console.log("proximity-entered");
                 const { users, stationary } = msg.payload;
 
-                const s = interactionRef.current;
-                users.forEach((id:string) => s.proximity.add(id))
-
+                const s = proximityRef.current;
+                users.forEach((id: string) => s.add(id));
               }
+
               break;
 
             case "proximity-leave":
@@ -190,70 +202,74 @@ export default function Arena() {
                 console.log("proximity-leave");
                 const { users, stationary } = msg.payload;
 
-                const s = interactionRef.current;
+                const s = proximityRef.current;
 
-                users.forEach((id:string)=> {
-                  s.proximity.delete(id);
-                  s.pendingIncoming.delete(id);
-                  s.pendingOutgoing.delete(id);
-                  s.accepted.delete(id);
-                  s.rejected.delete(id);
-                } )
+                users.forEach((id: string) => {
+
+                  s.delete(id);
+
+                  if (requesterRef.current === id){
+                    requesterRef.current = null;
+                  }
+
+                });
+
+                
+              }
+              break;
+
+            case "availability-update":
+              {
+                const { userId, availability } = msg.payload;
+                availabilityRef.current.set(userId, availability);
+
+                const ourId = localPlayerRef.current?.id;
+
+                if(!ourId) return;
+
+                console.log(availabilityRef.current.get(ourId));
+          
+
+                ourUserAvailabilityRef.current = availabilityRef.current.get(ourId) ?? 'FREE'
+
               }
               break;
 
             case "request-sent":
               {
-
-                const user: string = msg.payload.user;
-
-                const s = interactionRef.current
-
-                s.pendingOutgoing.add(user);
-
+                console.log("you sent request");
               }
               break;
 
             case "you-rejected-request":
               {
-                console.log('you rejected request')
+                console.log("you rejected request");
 
-                const id = msg.payload.user;
+                requesterRef.current = null;
 
-                const s = interactionRef.current;
 
-                s.rejected.add(id)
-                s.pendingIncoming.delete(id)
-                s.pendingOutgoing.delete(id)
-                
               }
               break;
 
-            case "you-accepted-request": {
+            case "you-accepted-request":
+              {
+                const id = msg.payload.user;
 
-              const id = msg.payload.user;
+                requesterRef.current = null;
 
-              const s = interactionRef.current;
-
-              s.accepted.add(id)
-              s.pendingIncoming.delete(id);
-              s.pendingOutgoing.delete(id)
-              
-            } 
-            break; 
+              }
+              break;
 
             case "message-request":
               {
                 console.log("message request received");
 
-                const { id, userId } = msg.payload;
+                const { id, userId  } = msg.payload
 
+                requesterRef.current = id
 
-                const s = interactionRef.current;
+                console.log(requesterRef.current)
 
-                s.pendingIncoming.add(id)
-
-                
               }
               break;
 
@@ -263,15 +279,7 @@ export default function Arena() {
 
                 console.log("your request was accepted");
 
-                const s = interactionRef.current;
-
-                users.forEach((id:string) => {
-                  s.accepted.add(id)
-                  s.pendingIncoming.delete(id)
-                  s.pendingOutgoing.delete(id)
-                })
-
-                
+                // pendingTargetRef.current = null;
               }
               break;
 
@@ -281,14 +289,7 @@ export default function Arena() {
 
                 const id = msg.payload.user;
 
-                const s = interactionRef.current;
-               
-                  s.rejected.add(id);
-                  s.pendingIncoming.delete(id);
-                  s.pendingOutgoing.delete(id);
-              
-
-                
+                // pendingTargetRef.current = null;
               }
               break;
 
@@ -315,19 +316,13 @@ export default function Arena() {
               break;
 
             case "session-ended":
-              { 
-                const s = interactionRef.current;
-                s.pendingIncoming.clear();
-                s.pendingOutgoing.clear();
-                s.accepted.clear();
-                s.rejected.clear();
-
+              {
+                requesterRef.current = null;
                 console.log("session ended");
                 setSessionId(null);
                 setSessionUsersNumber(0);
               }
               break;
-
 
             case "user-left-chat": {
               const { userId, userName } = msg.payload;

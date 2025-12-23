@@ -86,6 +86,6 @@ export class RejectBubble extends GameObject {
       })
     );
 
-    events.emit("ACCEPT_DECLINE_BUBBLES_OFF", this.hero.id);
+    
   }
 }

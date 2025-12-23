@@ -12,7 +12,7 @@ import { Rod } from "./objects/Rod/Rod.ts";
 import { Inventory } from "./objects/Inventory/Inventory.ts";
 import { events } from "./core/Events.ts";
 import type React from "react";
-import type { InteractionState } from "../pages/Arena.tsx";
+import type { UserAvailability } from "../pages/Arena.tsx";
 
 export function startGame(
   canvas: HTMLCanvasElement | null,
@@ -22,7 +22,10 @@ export function startGame(
     Map<string, { x: number; y: number; animation?: string }>
   >,
   positionKey: React.RefObject<string>,
-  interactionRef: React.RefObject<InteractionState>
+  proximityRef: React.RefObject<Set<string>>,
+  availabilityRef: React.RefObject<Map<string, UserAvailability>>,
+  ourUserAvailabilityRef: React.RefObject<UserAvailability>,
+  requesterRef: React.RefObject<string|null>
 ) {
   canvas?.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -67,7 +70,6 @@ export function startGame(
       positionKey: positionKey,
       remoteHero: false,
       ws: ws,
-      
     }
   );
   mainScene.addChild(hero);
@@ -84,7 +86,6 @@ export function startGame(
           remoteHero: true,
           animation: remoteAnimation,
           ws: ws,
-          
         });
 
         mainScene.addChild(remoteHero);
@@ -104,7 +105,6 @@ export function startGame(
           const ui = computeHeroUI(playerId);
           hero.setUI(ui);
         }
-        
       }
     }
 
@@ -118,23 +118,47 @@ export function startGame(
     }
   }
 
-  
   function computeHeroUI(heroId: string) {
-    const s = interactionRef.current;
+    const inProximity = proximityRef.current.has(heroId);
+    
+    const availability = availabilityRef.current.get(heroId) ?? "FREE";
+   
+    const sentRequestPending = ourUserAvailabilityRef.current === "PENDING_OUT";
 
-    const inProximity = s.proximity.has(heroId);
-    const hasIncoming = s.pendingIncoming.has(heroId);
-    const hasAnyPending = s.pendingIncoming.size > 0 || s.pendingOutgoing.size > 0;
-    const pendingOutgoing = s.pendingOutgoing.has(heroId)
+    const pendingRequests =
+      ourUserAvailabilityRef.current === "PENDING_OUT" ||
+      ourUserAvailabilityRef.current === "PENDING_IN";
+
+    const weWereRequested = requesterRef.current === heroId   
+
+    const weAreInSession =
+      ourUserAvailabilityRef.current === "IN_SESSION_ADMIN" ||
+      ourUserAvailabilityRef.current === "IN_SESSION_MEMBER"; 
+  
+    
+
+    if (!availability) {
+      return {
+        chatEnabled: false,
+        loaderEnabled: false,
+        showAccept: false,
+        showReject: false,
+      };
+    }
 
 
     return {
-      chatEnabled: inProximity && !hasAnyPending && !s.accepted.has(heroId) && !s.rejected.has(heroId),
-      loaderEnabled: inProximity && hasAnyPending && !s.accepted.has(heroId) && !s.rejected.has(heroId) && !hasIncoming && pendingOutgoing,
-      showAccept: inProximity && hasIncoming,
-      showReject: inProximity && hasIncoming
-    }
+      chatEnabled: inProximity && (availability === "FREE" || availability === "IN_SESSION_ADMIN") && !pendingRequests && !weAreInSession,
 
+      loaderEnabled:
+        inProximity && sentRequestPending && availability === "PENDING_IN",
+
+      showAccept:
+        inProximity && availability === "PENDING_OUT" && weWereRequested,
+
+      showReject:
+        inProximity && availability === "PENDING_OUT" && weWereRequested,
+    };
   }
 
   const camera = new Camera();
@@ -149,7 +173,7 @@ export function startGame(
 
   const update = (delta: number) => {
     updateRemotePlayer();
-   
+
     mainScene.stepEntry(delta, mainScene);
   };
 

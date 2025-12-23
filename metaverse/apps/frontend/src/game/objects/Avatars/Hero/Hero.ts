@@ -40,18 +40,13 @@ export class Hero extends GameObject {
   remoteHero?: boolean;
   remoteAnimation?: string;
   positionKey?: React.RefObject<string>;
-
  
+
   chatBubble?: ChatBubble;
   loaderBubble?: LoaderBubble;
 
-  proximityUserIdsRef?: React.RefObject<string[]>;
-  
-
   acceptBubble?: AcceptBubble;
   rejectBubble?: RejectBubble;
-
-  
 
   constructor(
     x: number,
@@ -62,7 +57,7 @@ export class Hero extends GameObject {
       remoteHero?: boolean;
       ws?: WebSocket;
       animation?: string;
-      
+      pendingTargetRef?: React.RefObject<string | null>;
     } = {}
   ) {
     super(new Vector2(x, y));
@@ -73,7 +68,6 @@ export class Hero extends GameObject {
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
     this.positionKey = options.positionKey;
-
     
 
     if (this.remoteHero) {
@@ -83,7 +77,7 @@ export class Hero extends GameObject {
 
       const loaderBubble = new LoaderBubble(this);
       this.loaderBubble = loaderBubble;
-      this.addChild(this.loaderBubble)
+      this.addChild(this.loaderBubble);
 
       const acceptBubble = new AcceptBubble(this);
       const rejectBubble = new RejectBubble(this);
@@ -127,28 +121,6 @@ export class Hero extends GameObject {
     this.destinationPosition = this.position.duplicate();
     this.itemPickupTime = 0;
     this.itemPickupShell = null;
-
-    events.on("HERO_PICKS_UP_ITEM", this, (data) => {
-      this.onPickUpItem(
-        data as {
-          image: { image: HTMLImageElement; isLoaded: boolean };
-          position: Vector2;
-        }
-      );
-    });
-
-    events.on("ACCEPT_DECLINE_BUBBLES_OFF", this, (data) => {
-      if (data === this.id) {
-        this.acceptBubble?.disable();
-        this.rejectBubble?.disable();
-      }
-    });
-
-    events.on("CHATBUBBLE_OFF", this, (data) => {
-      if (data !== this.id) {
-        this.chatBubble?.disable();
-      }
-    });
   }
 
   step(delta: number, root: GameObject) {
@@ -334,46 +306,45 @@ export class Hero extends GameObject {
   }
 
   setUI(state: {
-  chatEnabled: boolean;
-  loaderEnabled: boolean;
-  showAccept: boolean;
-  showReject: boolean;
-}) {
-  if (this.chatBubble) {
-    if (state.chatEnabled && !this.chatBubble.enabled) {
-      this.chatBubble.enable();
+    chatEnabled: boolean;
+    loaderEnabled: boolean;
+    showAccept: boolean;
+    showReject: boolean;
+  }) {
+    if (this.chatBubble) {
+      if (state.chatEnabled && !this.chatBubble.enabled) {
+        this.chatBubble.enable();
+      }
+      if (!state.chatEnabled && this.chatBubble.enabled) {
+        this.chatBubble.disable();
+      }
     }
-    if (!state.chatEnabled && this.chatBubble.enabled) {
-      this.chatBubble.disable();
+
+    if (this.loaderBubble) {
+      if (state.loaderEnabled && !this.loaderBubble.enabled) {
+        this.loaderBubble.enable();
+      }
+      if (!state.loaderEnabled && this.loaderBubble.enabled) {
+        this.loaderBubble.disable();
+      }
+    }
+
+    if (this.acceptBubble) {
+      if (state.showAccept && !this.acceptBubble.enabled) {
+        this.acceptBubble.enable();
+      }
+      if (!state.showAccept && this.acceptBubble.enabled) {
+        this.acceptBubble.disable();
+      }
+    }
+
+    if (this.rejectBubble) {
+      if (state.showReject && !this.rejectBubble.enabled) {
+        this.rejectBubble.enable();
+      }
+      if (!state.showReject && this.rejectBubble.enabled) {
+        this.rejectBubble.disable();
+      }
     }
   }
-
-  if (this.loaderBubble) {
-    if (state.loaderEnabled && !this.loaderBubble.enabled) {
-      this.loaderBubble.enable();
-    }
-    if (!state.loaderEnabled && this.loaderBubble.enabled) {
-      this.loaderBubble.disable();
-    }
-  }
-
-  if (this.acceptBubble) {
-    if (state.showAccept && !this.acceptBubble.enabled) {
-      this.acceptBubble.enable();
-    }
-    if (!state.showAccept && this.acceptBubble.enabled) {
-      this.acceptBubble.disable();
-    }
-  }
-
-  if (this.rejectBubble) {
-    if (state.showReject && !this.rejectBubble.enabled) {
-      this.rejectBubble.enable();
-    }
-    if (!state.showReject && this.rejectBubble.enabled) {
-      this.rejectBubble.disable();
-    }
-  }
-}
-
 }

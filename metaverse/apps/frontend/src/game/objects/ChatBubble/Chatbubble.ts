@@ -8,6 +8,7 @@ import type { Hero } from "../Avatars/Hero/Hero";
 export class ChatBubble extends GameObject {
   hero: Hero;
   messageSprite: Sprite;
+
   
 
   eventId?: number;
@@ -21,6 +22,7 @@ export class ChatBubble extends GameObject {
 
     this.hero = hero;
     this.position = new Vector2(0, -26);
+   
 
     this.messageSprite = new Sprite({
       resource: resources.images.message,
@@ -29,12 +31,7 @@ export class ChatBubble extends GameObject {
       
     });
 
-    
-
     this.addChild(this.messageSprite)
-    
-
-
     this.messageSprite.visible = false
 
 
@@ -85,6 +82,8 @@ export class ChatBubble extends GameObject {
 
   onClick() {
     console.log("request sent");
+
+    // this.pendingTargetRef.current = this.hero.id
 
     this.hero.webSocketConnection?.send(
       JSON.stringify({
