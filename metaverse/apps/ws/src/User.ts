@@ -22,7 +22,10 @@ type UserAvailability =
   | "PENDING_IN"
   | "PENDING_OUT"
   | "IN_SESSION_ADMIN"
-  | "IN_SESSION_MEMBER";
+  | "IN_SESSION_MEMBER"
+  | "ADMIN_AND_PENDING_IN";
+
+  
 
 export class User {
   public id: string;
@@ -244,7 +247,13 @@ export class User {
             }
 
             this.availability = "PENDING_OUT";
-            messageReqUser.availability = "PENDING_IN";
+
+            if(messageReqUser.availability === "IN_SESSION_ADMIN") {
+              messageReqUser.availability = "ADMIN_AND_PENDING_IN"
+            }else {
+              messageReqUser.availability = "PENDING_IN";
+            } 
+
 
             this.send({
               type: "request-sent",
@@ -283,7 +292,7 @@ export class User {
             if (!acceptedUser) return;
 
             if (
-              this.availability !== "PENDING_IN" ||
+              this.availability !== "PENDING_IN" && this.availability !== "ADMIN_AND_PENDING_IN" ||
               acceptedUser?.availability !== "PENDING_OUT"
             )
               return;
@@ -346,6 +355,7 @@ export class User {
 
               acceptedUser.sessionId = this.sessionId;
               acceptedUser.availability = "IN_SESSION_MEMBER";
+              this.availability = "IN_SESSION_ADMIN";
 
               acceptedUser.send({
                 type: "chat-session",
@@ -374,7 +384,9 @@ export class User {
             if (!rejectedUser) return;
 
             if (
-              this.availability !== "PENDING_IN" ||
+              (this.availability !== "PENDING_IN" &&
+                this.availability !== "ADMIN_AND_PENDING_IN") ||
+          
               rejectedUser.availability !== "PENDING_OUT"
             ) {
               return;
@@ -384,7 +396,14 @@ export class User {
               (id) => id !== userId
             );
 
-            this.availability = "FREE";
+            if(this.availability === "ADMIN_AND_PENDING_IN"){
+              this.availability = "IN_SESSION_ADMIN"
+            }
+
+            if(this.availability === "PENDING_IN") {
+              this.availability = "FREE";
+            }
+            
             rejectedUser.availability = "FREE";
 
             rejectedUser.send({
@@ -575,6 +594,8 @@ export class User {
 
       if (
         user.availability === "PENDING_IN" ||
+        user.availability === "ADMIN_AND_PENDING_IN" ||
+        this.availability === "ADMIN_AND_PENDING_IN" ||
         this.availability === "PENDING_IN"
       ) {
         if (
@@ -588,8 +609,26 @@ export class User {
             (id) => id !== user.id
           );
 
-          user.availability = "FREE";
-          this.availability = "FREE";
+          if (user.availability === "PENDING_IN"){
+            user.availability = "FREE";
+            this.availability = "FREE";
+          }
+          if (user.availability === "ADMIN_AND_PENDING_IN"){
+            user.availability = "IN_SESSION_ADMIN"
+            this.availability = "FREE";
+          }
+
+          if (this.availability === "PENDING_IN") {
+            this.availability = "FREE";
+            user.availability = "FREE"
+          }
+          if (this.availability === "ADMIN_AND_PENDING_IN") {
+            this.availability = "IN_SESSION_ADMIN";
+            user.availability = "FREE";
+
+          }
+
+
           user.broadcastAvailability();
           this.broadcastAvailability();
         }
@@ -624,12 +663,14 @@ export class User {
     if (!otherUser?.sessionId || otherUser.sessionId !== this.sessionId) return;
 
     const sessionId = this.sessionId;
-    const sessionUsers = SessionManager.getInstance().sessions.get(sessionId);
+    const sessionUsers = SessionManager.getInstance().sessions.get(sessionId)?.filter((user) => user.id !== this.id)
 
     if (!sessionUsers) return;
 
-    const isAdmin = this.availability === "IN_SESSION_ADMIN";
+    const isAdmin = this.availability === "IN_SESSION_ADMIN" || this.availability === "ADMIN_AND_PENDING_IN"
     const isMember = this.availability === "IN_SESSION_MEMBER";
+
+    console.log("code reaches before conditionals");
 
     if (!stationary) {
       //we moved as a member
@@ -654,7 +695,17 @@ export class User {
         SessionManager.getInstance().sessions.delete(sessionId);
 
         this.sessionId = undefined;
-        this.availability = "FREE";
+
+        if (this.availability === "ADMIN_AND_PENDING_IN") {
+          this.availability = "PENDING_IN"
+        } else {
+          this.availability = "FREE";
+        }
+
+        this.send({
+          type: "session-ended"
+        })
+        
         this.broadcastAvailability();
 
         return;
@@ -712,14 +763,18 @@ export class User {
 
       // If admin is now alone, end entire session
       if (!remainingUsers || remainingUsers.length < 2) {
-        console.log("code does enter the remaining users block");
-
         SessionManager.getInstance().removeUser(this, sessionId);
 
         SessionManager.getInstance().sessions.delete(sessionId);
 
         this.sessionId = undefined;
-        this.availability = "FREE";
+
+        if(this.availability === "ADMIN_AND_PENDING_IN") {
+          this.availability = "PENDING_IN"
+        } else {
+          this.availability = "FREE";
+        }
+       
         this.broadcastAvailability();
 
         this.send({

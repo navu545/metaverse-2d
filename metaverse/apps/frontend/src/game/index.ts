@@ -25,7 +25,7 @@ export function startGame(
   proximityRef: React.RefObject<Set<string>>,
   availabilityRef: React.RefObject<Map<string, UserAvailability>>,
   ourUserAvailabilityRef: React.RefObject<UserAvailability>,
-  requesterRef: React.RefObject<string|null>
+  requesterRef: React.RefObject<string | null>
 ) {
   canvas?.addEventListener("click", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -120,22 +120,21 @@ export function startGame(
 
   function computeHeroUI(heroId: string) {
     const inProximity = proximityRef.current.has(heroId);
-    
+
     const availability = availabilityRef.current.get(heroId) ?? "FREE";
-   
+
     const sentRequestPending = ourUserAvailabilityRef.current === "PENDING_OUT";
 
     const pendingRequests =
       ourUserAvailabilityRef.current === "PENDING_OUT" ||
       ourUserAvailabilityRef.current === "PENDING_IN";
 
-    const weWereRequested = requesterRef.current === heroId   
+    const weWereRequested = requesterRef.current === heroId;
 
     const weAreInSession =
       ourUserAvailabilityRef.current === "IN_SESSION_ADMIN" ||
-      ourUserAvailabilityRef.current === "IN_SESSION_MEMBER"; 
-  
-    
+      ourUserAvailabilityRef.current === "IN_SESSION_MEMBER" ||
+      ourUserAvailabilityRef.current === "ADMIN_AND_PENDING_IN";
 
     if (!availability) {
       return {
@@ -146,12 +145,18 @@ export function startGame(
       };
     }
 
-
     return {
-      chatEnabled: inProximity && (availability === "FREE" || availability === "IN_SESSION_ADMIN") && !pendingRequests && !weAreInSession,
+      chatEnabled:
+        inProximity &&
+        (availability === "FREE" || availability === "IN_SESSION_ADMIN") &&
+        !pendingRequests &&
+        !weAreInSession,
 
       loaderEnabled:
-        inProximity && sentRequestPending && availability === "PENDING_IN",
+        inProximity &&
+        sentRequestPending &&
+        (availability === "PENDING_IN" ||
+          availability === "ADMIN_AND_PENDING_IN"),
 
       showAccept:
         inProximity && availability === "PENDING_OUT" && weWereRequested,

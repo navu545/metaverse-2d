@@ -20,7 +20,8 @@ export type UserAvailability =
   | "PENDING_IN"
   | "PENDING_OUT"
   | "IN_SESSION_ADMIN"
-  | "IN_SESSION_MEMBER";
+  | "IN_SESSION_MEMBER"
+  | "ADMIN_AND_PENDING_IN";
 
 export default function Arena() {
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -199,7 +200,7 @@ export default function Arena() {
 
             case "proximity-leave":
               {
-                console.log("proximity-leave");
+                
                 const { users, stationary } = msg.payload;
 
                 const s = proximityRef.current;
@@ -210,9 +211,12 @@ export default function Arena() {
 
                   if (requesterRef.current === id){
                     requesterRef.current = null;
+                    console.log('requester ref deleted')
                   }
 
                 });
+
+                
 
                 
               }
@@ -227,7 +231,7 @@ export default function Arena() {
 
                 if(!ourId) return;
 
-                console.log(availabilityRef.current.get(ourId));
+                console.log(availabilityRef.current.get(ourId), 'availability update at client');
           
 
                 ourUserAvailabilityRef.current = availabilityRef.current.get(ourId) ?? 'FREE'
@@ -268,7 +272,7 @@ export default function Arena() {
 
                 requesterRef.current = id
 
-                console.log(requesterRef.current)
+                console.log(requesterRef.current, 'requester ref saved')
 
               }
               break;
@@ -317,7 +321,6 @@ export default function Arena() {
 
             case "session-ended":
               {
-                requesterRef.current = null;
                 console.log("session ended");
                 setSessionId(null);
                 setSessionUsersNumber(0);
