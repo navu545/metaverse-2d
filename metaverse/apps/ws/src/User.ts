@@ -339,7 +339,7 @@ export class User {
                   payload: {
                     sessionId: sessionId,
                     numberUsers: sessionUsers.length,
-                    chatAdmin: this.id,
+                    chatAdmin: this.name,
                   },
                 });
               });
@@ -362,9 +362,16 @@ export class User {
                 payload: {
                   sessionId: this.sessionId,
                   numberUsers: sessionUsers!.length,
-                  chatAdmin: this.id,
+                  chatAdmin: this.name,
                 },
               });
+
+              SessionManager.getInstance().broadcast({
+                type: 'new-user-joined',
+                payload: {
+                  userName: acceptedUser.name
+                }
+              }, acceptedUser, this.sessionId)
 
               this.broadcastAvailability();
               acceptedUser.broadcastAvailability();

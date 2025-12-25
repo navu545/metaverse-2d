@@ -27,7 +27,7 @@ export default function Arena() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
-  const [sessionUsersNumber, setSessionUsersNumber] = useState<number>(0);
+  const [chatAdmin, setChatAdmin] = useState<string>("");
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -44,6 +44,8 @@ export default function Arena() {
   const userIdRef = useRef<string>("");
 
   const userNameRef = useRef<string>("");
+
+  const chatAdminRef = useRef<string>("");
 
   const remotePlayersRef = useRef<
     Map<string, { x: number; y: number; animation?: string }>
@@ -299,11 +301,13 @@ export default function Arena() {
 
             case "chat-session":
               {
-                const { sessionId, numberUsers } = msg.payload;
-
-                setSessionUsersNumber(numberUsers);
+                const { sessionId, numberUsers, chatAdmin } = msg.payload;
 
                 sessionIdRef.current = sessionId;
+
+                chatAdminRef.current = chatAdmin;
+
+                setChatAdmin(chatAdmin)
 
                 setSessionId(sessionId);
 
@@ -314,7 +318,6 @@ export default function Arena() {
             case "inbox-message":
               {
                 const { text } = msg.payload;
-
                 console.log("message received", text);
               }
               break;
@@ -323,7 +326,7 @@ export default function Arena() {
               {
                 console.log("session ended");
                 setSessionId(null);
-                setSessionUsersNumber(0);
+          
               }
               break;
 
@@ -331,8 +334,6 @@ export default function Arena() {
               const { userId, userName } = msg.payload;
 
               console.log(userName, "left the chat");
-
-              setSessionUsersNumber((prev) => prev - 1);
             }
           }
         };
@@ -355,8 +356,8 @@ export default function Arena() {
         height={180}
         style={{ border: "1px solid black" }}
       />
-      {ws && sessionId && (
-        <ChatBox ws={ws} sessionId={sessionId} userName={userName}></ChatBox>
+      {ws && sessionId && chatAdmin && (
+        <ChatBox ws={ws} sessionId={sessionId} userName={userName} chatAdmin={chatAdmin}></ChatBox>
       )}
       <div>
         <DebugOverlay />
