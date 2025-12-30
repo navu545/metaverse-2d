@@ -1,3 +1,5 @@
+//to encrypt and decrypt passwords
+
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 
 const keyLength = 32;

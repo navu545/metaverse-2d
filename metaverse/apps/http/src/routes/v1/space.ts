@@ -4,6 +4,7 @@ import client from "@repo/db/client"
 import { userMiddleware } from "../../middleware/user";
 export const spaceRouter = Router();
 
+//the following endpoint is to create a space with or without map
 spaceRouter.post("/", userMiddleware, async(req,res)=> {
     const parsedData = CreateSpaceSchema.safeParse(req.body)
     if (!parsedData.success) {
@@ -11,6 +12,7 @@ spaceRouter.post("/", userMiddleware, async(req,res)=> {
         return
     }
 
+    //if map id isn't present in request body, just create a fresh space with no elements
     if(!parsedData.data.mapId) {
         const space = await client.space.create({
             data: {
@@ -23,6 +25,8 @@ spaceRouter.post("/", userMiddleware, async(req,res)=> {
         res.json({spaceId: space.id})
         return
     }
+
+    //if map, find the map and get all the elements associated with it
     const map = await client.map.findFirst({
         where: {
             id: parsedData.data.mapId
@@ -37,6 +41,8 @@ spaceRouter.post("/", userMiddleware, async(req,res)=> {
         res.status(400).json({message: "Map not found"})
         return 
     }
+
+    //we are creating a transaction here to avoid partial db writes
     let space = await client.$transaction(async ()=> {
         const space = await client.space.create({
         data:{
@@ -61,6 +67,7 @@ spaceRouter.post("/", userMiddleware, async(req,res)=> {
     res.json({spaceId: space.id})
 })
 
+//the following endpoint is to delete a placed element in a space
 spaceRouter.delete("/element", userMiddleware, async (req, res) => {
   const parsedData = DeleteElementSchema.safeParse(req.body);
   if (!parsedData.success) {
@@ -75,6 +82,7 @@ spaceRouter.delete("/element", userMiddleware, async (req, res) => {
       space: true,
     },
   });
+  //user id was attached to the req object by the middleware
   if (
     !spaceElement?.space.creatorId ||
     spaceElement.space.creatorId !== req.userId
@@ -90,6 +98,7 @@ spaceRouter.delete("/element", userMiddleware, async (req, res) => {
   res.json({ message: "Element deleted" });
 });
 
+//the following endpoint is to delete a space
 spaceRouter.delete("/:spaceId",userMiddleware, async(req, res) => {
     const space = await client.space.findUnique({
         where: {
@@ -116,6 +125,7 @@ spaceRouter.delete("/:spaceId",userMiddleware, async(req, res) => {
     res.json({message: "Space deleted"})
 });
 
+//following endpoint is to return all spaces created by user, would be used for space selector page, before entering arena
 spaceRouter.get("/all", userMiddleware, async (req, res) => {
   const spaces = await client.space.findMany({
     where: {
@@ -133,6 +143,7 @@ spaceRouter.get("/all", userMiddleware, async (req, res) => {
   });
 });
 
+//following endpoint is to add an element in a space
 spaceRouter.post("/element", userMiddleware, async (req, res) => {
   const parsedData = AddElementSchema.safeParse(req.body);
   if (!parsedData.success) {
@@ -149,6 +160,10 @@ spaceRouter.post("/element", userMiddleware, async (req, res) => {
       height: true,
     },
   });
+
+  /*if the given position of the element is invalid, the static object position verification responsibility lies on the http server
+  while the hero's position responsibility and updation lies on the websocket server
+  and we used positions saved from both servers to inculcate collision features */
 
   if(req.body.x < 0 || req.body.y < 0 || req.body.x > space?.width! || req.body.y > space?.height!) {
     res.status(400).json({message: "Point is outside of the boundary"})
@@ -171,6 +186,8 @@ spaceRouter.post("/element", userMiddleware, async (req, res) => {
   res.json({ message: "Element added" });
 });
 
+//following endpoint would be required to get all the elements within the space in order to render them in the arena
+//the structure is Space --> SpaceElements(contains x,y positions of the placed Element)--> Element (Actual element with specificities)
 spaceRouter.get("/:spaceId", async(req, res) => {
     const space = await client.space.findUnique({
         where: {
@@ -188,6 +205,8 @@ spaceRouter.get("/:spaceId", async(req, res) => {
         res.status(400).json({message: "Space not found"})
         return 
     }
+
+    //e.id below is spaceElements id, x and y are spaceElements position, and within the element object is the raw element
     res.json({
         "dimensions": `${space.width}x${space.height}`,
         elements: space.elements.map(e => ({

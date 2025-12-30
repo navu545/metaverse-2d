@@ -5,6 +5,7 @@ import { userMiddleware } from "../../middleware/user";
 
 export const userRouter = Router();
 
+//we use the following endpoint when we need to update our avatar
 userRouter.post("/metadata", userMiddleware, async(req, res)=> {
     const parsedData = UpdateMetadataSchema.safeParse(req.body)
     if (!parsedData.success) {
@@ -29,9 +30,10 @@ userRouter.post("/metadata", userMiddleware, async(req, res)=> {
     
 })
 
+//we need the following endpoint so we can get details about all users in a space to render them 
 userRouter.get("/metadata/bulk", async(req, res) => {
   const userIdString = (req.query.ids ?? "[]") as string;
-  const userIds = userIdString.slice(1, userIdString?.length - 1).split(","); 
+  const userIds = userIdString.slice(1, userIdString?.length - 1).split(","); //ids = [1,2,3], we'd need to remove the '[' ']'
 
   
   const metadata = await client.user.findMany({

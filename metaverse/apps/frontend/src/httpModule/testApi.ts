@@ -1,3 +1,13 @@
+/* Just an example of how elements, map and space could be created, we're not really using the elements created here 
+but can integrate them in the future by actually fetching the map-elements details and using them in the main index.ts
+file in the frontend. instead of using the hardcoded resources that we are using currently
+the things here that are actively being used in the frontend --> 
+1: SpaceId : we use it in the ws backend to fetch all the users details associated with that spaceId and send it to frontend
+for them to be rendered at their respective positions
+2: Space dimensions: Being used in the ws backend again where it allocated the hero a spawn point according to that,
+updates the hero's position in the database as well */
+
+
 import axios from "axios";
 import type { AxiosResponse } from "axios";
 
@@ -12,7 +22,8 @@ export async function makeASpace(): Promise<makeASpaceResult> {
     const username = "nav" + Math.random();
     const password = "123456";
 
-    const signUpResponse = await axios.post(`${BACKEND_URL}/api/v1/signup`, {
+    //signup-signin
+    await axios.post(`${BACKEND_URL}/api/v1/signup`, {
       username,
       password,
       type: "admin",
@@ -30,6 +41,7 @@ export async function makeASpace(): Promise<makeASpaceResult> {
     const adminToken = response.data.token;
     const authHeader = { headers: { authorization: `Bearer ${adminToken}` } };
 
+    //these are just dummies, not really being used
     const elementPayloads = [
       {
         imageUrl:
@@ -68,6 +80,7 @@ export async function makeASpace(): Promise<makeASpaceResult> {
       },
     ];
 
+    //waiting on every elementId to be returned
     const elementResponses = await Promise.all(
       elementPayloads.map((payload) =>
         axios.post<{ id: string }>(
@@ -102,7 +115,7 @@ export async function makeASpace(): Promise<makeASpaceResult> {
 
     const mapId = mapResponse.data.id;
 
-
+    //the saved space dimensions here would be the one used in the backend to allocate a spawn point for hero 
     const spaceResponse: AxiosResponse<{ spaceId: string }> = await axios.post(
       `${BACKEND_URL}/api/v1/space`,
       {
@@ -113,6 +126,7 @@ export async function makeASpace(): Promise<makeASpaceResult> {
       authHeader
     );
 
+    //spaceId would be used by the ws backend to allocate users and save their positions respectively while also updating the database
     const spaceId = spaceResponse.data.spaceId;
 
     return { spaceId, adminToken };

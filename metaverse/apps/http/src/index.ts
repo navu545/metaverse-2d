@@ -1,11 +1,11 @@
 import express from "express";
 import cors from "cors";
-
 import { router } from "./routes/v1";
 
 
 const app = express()
 
+//allowing cross origin requests for testing
 app.use(cors({
     origin: "http://localhost:5173",
     credentials: true,

@@ -62,6 +62,7 @@ export const CreateMapSchema = z.object({
   ),
 });
 
+//for ts errors
 declare global {
   namespace Express {
     export interface Request {

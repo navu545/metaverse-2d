@@ -8,8 +8,9 @@ import {
 import client from "@repo/db/client";
 export const adminRouter = Router();
 import { adminMiddleware } from "../../middleware/admin";
-import { parse } from "node:path";
 
+
+//The following endpoint is to create an element from scratch, only allowed to admins
 adminRouter.post("/element", adminMiddleware, async (req, res) => {
   const parsedData = CreateElementSchema.safeParse(req.body);
   if (!parsedData.success) {
@@ -28,6 +29,8 @@ adminRouter.post("/element", adminMiddleware, async (req, res) => {
     id: element.id,
   });
 });
+
+//The following endpoint is to modify an existing element created from scratch
 adminRouter.put("/element/:elementId", adminMiddleware, async (req, res) => {
   const parsedData = UpdateElementSchema.safeParse(req.body);
   if (!parsedData.success) {
@@ -47,6 +50,7 @@ adminRouter.put("/element/:elementId", adminMiddleware, async (req, res) => {
   });
 });
 
+//The following endpoint is to create an avatar from scratch
 adminRouter.post("/avatar", adminMiddleware, async (req, res) => {
   const parsedData = CreateAvatarSchema.safeParse(req.body);
   if (!parsedData.success) {
@@ -61,6 +65,8 @@ adminRouter.post("/avatar", adminMiddleware, async (req, res) => {
   });
   res.json({ avatarId: avatar.id });
 });
+
+//The following endpoint is to create a map
 adminRouter.post("/map", adminMiddleware, async (req, res) => {
   const parsedData = CreateMapSchema.safeParse(req.body);
   if (!parsedData.success) {
