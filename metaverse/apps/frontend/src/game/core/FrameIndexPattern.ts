@@ -8,6 +8,11 @@ type animationConfigType =  {
     frames: frameObject[]
 }
 
+//the constants we are exporting from the heroAnimations are the animation configs
+
+/*FrameIndexPattern acts as a track player for the frame track that is given to it, like walking animations track etc.,
+it spits out a frame based on the time it is given. */
+
 export class FrameIndexPattern {
 
     currentTime: number;
@@ -20,6 +25,8 @@ export class FrameIndexPattern {
     this.duration = animationConfig.duration ?? 500;
   }
 
+  //we run the loop in reverse to extarct the latest keyFrame, currentTime will keep getting updated in step and then reset
+
   get frame() {
     const { frames } = this.animationConfig;
 
@@ -30,6 +37,7 @@ export class FrameIndexPattern {
     }
     throw "Time is before the first keyframe";
   }
+
 
   step(delta: number) {
     this.currentTime += delta;

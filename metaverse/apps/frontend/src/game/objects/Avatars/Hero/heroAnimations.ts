@@ -1,3 +1,11 @@
+
+/*The two functions here return the duration for which the animation should repeat, and the time stamps of when they should 
+appear. eg. Our sprite image of hero avatar contains frames in 3*8 orientation, frame 0 is the frame in 0th row and 0th column,
+frame 1 is frame in 0th row, and 1st column and so on. The way we have designed this makeWalkingFrames is that at 
+time 0, the middle frame will occur, then at time 1, the frame before that, then the middle again and then the last one,
+and this whole cycle repeats giving an illusion of our character walking. */
+
+
 const makeWalkingFrames = (rootFrame = 0) => {
   return {
     duration: 400,
@@ -33,6 +41,8 @@ const makeStandingFrames = (rootFrame = 0) => {
     ],
   };
 };
+
+//we export these returned objects {duration:total time, frames:[{time:when should this frame appear, frame:which frame}]}
 
 export const WALK_DOWN = makeWalkingFrames(0);
 export const WALK_UP = makeWalkingFrames(6);

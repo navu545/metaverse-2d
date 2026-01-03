@@ -9,8 +9,6 @@ export class ChatBubble extends GameObject {
   hero: Hero;
   messageSprite: Sprite;
 
-  
-
   eventId?: number;
   enabled = false;
 

@@ -1,12 +1,12 @@
 import { User } from "./User";
 import { OutgoingMessage } from "./types";
 
+//SessionManger is a singleton responsible for maintainance of users in a chat-session, this is similar to RoomManager
 
 export class SessionManager {
 
     sessions: Map<string, User[]>
     static instance: SessionManager;
-
 
     private constructor(){
         this.sessions = new Map();

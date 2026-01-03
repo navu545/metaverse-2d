@@ -3,6 +3,9 @@ export const RIGHT = "RIGHT";
 export const UP = "UP";
 export const DOWN = "DOWN";
 
+/*Input class saves the order in which the latest pressed key takes priority, we attach two event listeners in the constructor,
+one listens to key pressed and the other to key left and passes them to the function which save them accordingly*/
+
 export class Input {
   heldDirections: string[];
 
@@ -40,16 +43,19 @@ export class Input {
     });
   }
 
+  //spits the latest pressed key
   get direction() {
     return this.heldDirections[0];
   }
 
+  //this function checks if the latest pressed key was already present in the array, if not, it puts it at index 0
   onArrowPressed(direction: string) {
     if (this.heldDirections.indexOf(direction) === -1) {
       this.heldDirections.unshift(direction);
     }
   }
 
+  //this function check if the key released is present, if yes, it removes it, so the previous latest to it can come to index 0
   onArrowReleased(direction: string) {
     const index = this.heldDirections.indexOf(direction);
     if (index === -1) {

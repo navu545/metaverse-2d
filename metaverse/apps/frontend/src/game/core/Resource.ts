@@ -1,3 +1,9 @@
+
+/*Resource class defines addresses of the resources internally, and stores them in images object, later on we'll make an 'add'function
+here which stores the resource info in toLoad and adds it to images as well. We'll use that function to integrate addition 
+of resources that would be fetched from the db by hitting the http server in a separate module */
+
+
 class Resources {
 
     toLoad: Record<string, string>
@@ -17,8 +23,9 @@ class Resources {
 
     };
 
-    this.images = {};
+    this.images = {}; //an object containing {html image element , boolean representing readiness} next to the resource name as key
 
+    //iterates over every toLoad object, and creates an htmlimage element for it, triggers the boolean when its ready to be used
     Object.keys(this.toLoad).forEach((key) => {
       const img = new Image();
       img.src = this.toLoad[key];

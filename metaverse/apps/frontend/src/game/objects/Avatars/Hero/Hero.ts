@@ -39,8 +39,6 @@ export class Hero extends GameObject {
   wsEmitPos?: { moving: boolean; animation: string };
   remoteHero?: boolean;
   remoteAnimation?: string;
-  positionKey?: React.RefObject<string>;
- 
 
   chatBubble?: ChatBubble;
   loaderBubble?: LoaderBubble;
@@ -53,7 +51,6 @@ export class Hero extends GameObject {
     y: number,
     id: string,
     options: {
-      positionKey?: React.RefObject<string>;
       remoteHero?: boolean;
       ws?: WebSocket;
       animation?: string;
@@ -67,8 +64,6 @@ export class Hero extends GameObject {
     this.webSocketConnection = options.ws;
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
-    this.positionKey = options.positionKey;
-    
 
     if (this.remoteHero) {
       const chatBubble = new ChatBubble(this);

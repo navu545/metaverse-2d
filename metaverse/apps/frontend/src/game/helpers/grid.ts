@@ -1,10 +1,11 @@
+/*gridCells helps in allowing input in grid terms which it converts into pixel terms, this allows us to be constrained 
+within predictable integer maths, imporoves readibility. */
 
-export const gridCells = (n:number) => {
-
+export const gridCells = (n: number) => {
   return n * 16;
 };
 
-export const isSpaceFree = (walls:Set<string>, x:number, y:number) => {
+export const isSpaceFree = (walls: Set<string>, x: number, y: number) => {
   const str = `${x},${y}`;
   const isWallPresent = walls.has(str);
 

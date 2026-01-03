@@ -7,6 +7,8 @@ interface playerType {
   y: number;
 }
 
+//the following service class helps us with methods that we use to interact with the db, mainly spaceUsers table to change positions
+
 export class SpaceUserService {
 
   findPlayer({ userId, spaceId }: { userId: string; spaceId: string }) {
