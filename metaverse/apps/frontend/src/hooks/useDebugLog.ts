@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 
+//temporary dev function to display console log on screen
 
 export function useDebugLog(timeout:2000) {
 

@@ -5,13 +5,13 @@ import { resources } from "../../core/Resource";
 import { events } from "../../core/Events";
 import type { Hero } from "../Avatars/Hero/Hero";
 
+//this class represent the reject button which appears on receiving of a request, it manages sending rejection details to the ws server
 export class RejectBubble extends GameObject {
   hero: Hero;
   sprite: Sprite;
   eventId?: number;
 
   enabled = false;
-  isVisible = false;
 
   width = 16;
   height = 16;
@@ -28,13 +28,15 @@ export class RejectBubble extends GameObject {
     });
 
     this.addChild(this.sprite);
+    this.sprite.visible = false;
   }
 
+  //gets enabled by the setUI in hero class after we detect that a request has been received
   enable() {
     if (this.enabled) return;
 
     this.enabled = true;
-    this.isVisible = true;
+    this.sprite.visible = true;
 
     if (this.eventId == null) {
       this.eventId = events.on("CLICK", this, (value: unknown) => {
@@ -46,11 +48,12 @@ export class RejectBubble extends GameObject {
     }
   }
 
+  //gets disabled by setUI when either the request is accepted or rejected
   disable() {
     if (!this.enabled) return;
 
     this.enabled = false;
-    this.isVisible = false;
+    this.sprite.visible = false;
 
     if (this.eventId != null) {
       events.off(this.eventId);
@@ -58,6 +61,7 @@ export class RejectBubble extends GameObject {
     }
   }
 
+  //detects whether it was clicked
   containsPoint(worldX: number, worldY: number) {
     const { x: objX, y: objY } = this.getWorldPosition();
 
@@ -69,11 +73,7 @@ export class RejectBubble extends GameObject {
     );
   }
 
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number) {
-    if (!this.isVisible) return;
-    super.draw(ctx, x, y);
-  }
-
+  //sends the rejection message event to ws server with the rejected user's details
   onClick() {
     console.log("reject chatbubble clicked");
 
@@ -85,7 +85,5 @@ export class RejectBubble extends GameObject {
         },
       })
     );
-
-    
   }
 }

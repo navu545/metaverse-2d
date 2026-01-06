@@ -17,6 +17,7 @@ const NAME_COLORS = [
   "text-teal-400",
 ];
 
+//this function assigns a color to a user by creating a hash unique to that user's name
 function getColorClass(name: string) {
   let hash = 0;
 
@@ -27,6 +28,7 @@ function getColorClass(name: string) {
   return NAME_COLORS[Math.abs(hash) % NAME_COLORS.length];
 }
 
+//this component renders when a ws server, a sessionId, and a chatAdmin exists
 export default function ChatBox({
   ws,
   sessionId,
@@ -38,6 +40,7 @@ export default function ChatBox({
   userName: string;
   chatAdmin: string;
 }) {
+  //default first message is the admin detail
   const [chatLog, setChatLog] = useState<ChatItem[]>([
     { type: "notification", name: chatAdmin, text: " is the Admin!" },
   ]);
@@ -50,6 +53,7 @@ export default function ChatBox({
       return;
     }
 
+    //on detection of a message event, we run the following to update the chat log which stores messages and notifications
     function handleMsg(event: MessageEvent) {
       const msg = JSON.parse(event.data);
 
@@ -92,12 +96,14 @@ export default function ChatBox({
     return () => ws.removeEventListener("message", handleMsg);
   }, [ws]);
 
+  //whenever chatLog array updates, the chat window is scrolled to the bottom so the most recent message is visible
   useEffect(() => {
     if (!scrollRef.current) return;
 
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chatLog]);
 
+  //this function sends a chatMessage event to the server soon as you hit enter/send button which is broadcasted to everyone
   function send() {
     if (!ws || !input.trim()) return;
 
@@ -117,6 +123,7 @@ export default function ChatBox({
       { type: "message", name: userName, text: input },
     ]);
 
+    //reset the input state to empty string once a message is sent to trigger a re render for ui
     setInput("");
   }
 

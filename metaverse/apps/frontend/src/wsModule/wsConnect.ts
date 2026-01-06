@@ -1,3 +1,5 @@
+//dev ws module to connect the user to a websocket server, return the ws connection object
+
 export async function connectWS(spaceId: string, adminToken: string) {
   const WS_URL = "ws://localhost:3001";
   const ws = new WebSocket(WS_URL);
@@ -13,7 +15,7 @@ export async function connectWS(spaceId: string, adminToken: string) {
     })
   );
 
-  //we send join message to join a space but we'll listen somewhere else to recieve it 
+  //we send join message to join a space but we'll listen somewhere else to recieve it
 
   return ws;
 }

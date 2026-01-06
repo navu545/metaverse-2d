@@ -1,4 +1,6 @@
-
+/*these are the current positions which are occupied by static objects. Later on we can add a function here, that'll track
+the positions of the heroes and dynamically update this list
+*/
 
 export const walls = new Set<string>();
 

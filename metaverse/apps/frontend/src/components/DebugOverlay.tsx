@@ -1,5 +1,6 @@
 import { useDebugLog } from "../hooks/useDebugLog";
 
+//component to display console log on screen
 export function DebugOverlay() {
 
     const log = useDebugLog(2000);

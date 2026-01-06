@@ -4,6 +4,7 @@ import { Sprite } from "../../core/Sprite";
 import { resources } from "../../core/Resource";
 import type { Hero } from "../Avatars/Hero/Hero";
 
+//while our request is pending, this gameObject will activate, it is activate by setUI function in hero class
 export class LoaderBubble extends GameObject {
   hero: Hero;
   loaderSprite: Sprite;

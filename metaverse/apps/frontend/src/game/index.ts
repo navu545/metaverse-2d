@@ -190,9 +190,11 @@ export function startGame(
   const camera = new Camera();
   mainScene.addChild(camera);
 
+  //test inventory object
   const rod = new Rod(gridCells(7), gridCells(6));
   mainScene.addChild(rod);
 
+  //test HUD for inventory
   const inventory = new Inventory();
 
   //we attach the input instance to the main scene which is later made use of in hero gameObject, input tells direction key

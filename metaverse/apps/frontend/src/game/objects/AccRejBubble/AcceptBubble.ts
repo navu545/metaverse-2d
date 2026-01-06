@@ -5,14 +5,12 @@ import { resources } from "../../core/Resource";
 import { events } from "../../core/Events";
 import type { Hero } from "../Avatars/Hero/Hero";
 
+//this class represent the accept button which appears on receiving of a request, it manages sending approval details to the ws server
 export class AcceptBubble extends GameObject {
   hero: Hero;
   sprite: Sprite;
   eventId?: number;
-
   enabled = false;
-  isVisible = false;
-
   width = 16;
   height = 16;
 
@@ -28,13 +26,15 @@ export class AcceptBubble extends GameObject {
     });
 
     this.addChild(this.sprite);
+    this.sprite.visible  = false
   }
 
+  //gets enabled by the setUI in hero class after we detect that a request has been received
   enable() {
     if (this.enabled) return;
 
     this.enabled = true;
-    this.isVisible = true;
+    this.sprite.visible = true;
 
     if (this.eventId == null) {
       this.eventId = events.on("CLICK", this, (value: unknown) => {
@@ -46,11 +46,12 @@ export class AcceptBubble extends GameObject {
     }
   }
 
+  //gets disabled by setUI when either the request is accepted or rejected
   disable() {
     if (!this.enabled) return;
 
     this.enabled = false;
-    this.isVisible = false;
+    this.sprite.visible = false
 
     if (this.eventId != null) {
       events.off(this.eventId);
@@ -58,6 +59,7 @@ export class AcceptBubble extends GameObject {
     }
   }
 
+  //detects whether it was clicked
   containsPoint(worldX: number, worldY: number) {
     const { x: objX, y: objY } = this.getWorldPosition();
 
@@ -69,11 +71,7 @@ export class AcceptBubble extends GameObject {
     );
   }
 
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number) {
-    if (!this.isVisible) return;
-    super.draw(ctx, x, y);
-  }
-
+  //sends the acceptance message event to ws server with the accepted user's details
   onClick() {
     console.log("Accept chatbubble clicked");
 

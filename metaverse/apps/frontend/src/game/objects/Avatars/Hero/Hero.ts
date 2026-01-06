@@ -26,25 +26,26 @@ import { AcceptBubble } from "../../AccRejBubble/AcceptBubble";
 import { RejectBubble } from "../../AccRejBubble/RejectBubble";
 import { LoaderBubble } from "../../ChatBubble/LoaderBubble";
 
+/*this class defines the Hero object (our moving avatar). It manages the movement and input, relays the position info to websocket and also manages the chatbubbles UI */
 export class Hero extends GameObject {
-  id: string;
-  body: Sprite;
-  facingDirection: string;
-  destinationPosition: Vector2;
-  itemPickupTime: number;
-  itemPickupShell: GameObject | null;
-  lastX!: number;
-  lastY!: number;
-  webSocketConnection?: WebSocket;
-  wsEmitPos?: { moving: boolean; animation: string };
-  remoteHero?: boolean;
-  remoteAnimation?: string;
+  id: string; //socket id
+  body: Sprite; //sprite image of the avatar
+  facingDirection: string; //up-down-left-right, for animations
+  destinationPosition: Vector2; //where the avatar is headed
+  itemPickupTime: number; //timer for the pickup animation and created rod object to exist
+  itemPickupShell: GameObject | null; //the temporarily created rod object
+  lastX!: number; //last x coordinate of the position
+  lastY!: number; //last y coordinate of the position
+  webSocketConnection?: WebSocket; //the ws connection object
+  wsEmitPos?: { moving: boolean; animation: string }; //object indicating this movement is to be sent to the server
+  remoteHero?: boolean; //hero object is some other user
+  remoteAnimation?: string; //remote hero's animation
 
-  chatBubble?: ChatBubble;
-  loaderBubble?: LoaderBubble;
-
-  acceptBubble?: AcceptBubble;
-  rejectBubble?: RejectBubble;
+  //chat UI objects
+  chatBubble?: ChatBubble; //indicates you can send a request
+  loaderBubble?: LoaderBubble; //indicates request pending
+  acceptBubble?: AcceptBubble; //allows you to accept
+  rejectBubble?: RejectBubble; //allows you to reject
 
   constructor(
     x: number,
@@ -60,11 +61,11 @@ export class Hero extends GameObject {
     super(new Vector2(x, y));
 
     this.id = id;
-
     this.webSocketConnection = options.ws;
     this.remoteHero = options.remoteHero;
     this.remoteAnimation = options.animation;
 
+    //all the chat UI objects appear above the remote players, storing them as properties come in handy to manage them
     if (this.remoteHero) {
       const chatBubble = new ChatBubble(this);
       this.chatBubble = chatBubble;
@@ -78,10 +79,11 @@ export class Hero extends GameObject {
       const rejectBubble = new RejectBubble(this);
       this.acceptBubble = acceptBubble;
       this.rejectBubble = rejectBubble;
-      this.addChild(acceptBubble);
-      this.addChild(rejectBubble);
+      this.addChild(this.acceptBubble);
+      this.addChild(this.rejectBubble);
     }
 
+    //this appears just below the hero
     const shadow = new Sprite({
       resource: resources.images.shadow,
       frameSize: new Vector2(32, 32),
@@ -90,6 +92,7 @@ export class Hero extends GameObject {
 
     this.addChild(shadow);
 
+    //this is the main avatar sprite which defines what our hero looks like, different frames for it, and different animations along that
     this.body = new Sprite({
       resource: resources.images.hero,
       frameSize: new Vector2(32, 32),
@@ -112,23 +115,36 @@ export class Hero extends GameObject {
 
     this.addChild(this.body);
 
-    this.facingDirection = DOWN;
-    this.destinationPosition = this.position.duplicate();
+    this.facingDirection = DOWN; //starting animation
+    this.destinationPosition = this.position.duplicate(); //default starting position the same as spawn
     this.itemPickupTime = 0;
     this.itemPickupShell = null;
+
+    //event which detects that rod was picked up, and runs the pickup item to add new rod as a child
+    events.on("HERO_PICKS_UP_ITEM", this, (data) => {
+      const { image, position } = data as {
+        image: { image: HTMLImageElement; isLoaded: boolean };
+        position: Vector2;
+      };
+      this.onPickUpItem({ image, position });
+    });
   }
 
+  //local step function allowing us to make movement calculations every gameLoop and acts as a helper to update users positions
   step(delta: number, root: GameObject) {
     if (this.itemPickupTime > 0) {
       this.workOnItemPickup(delta);
       return;
     }
 
-    const distance = moveTowards(this, this.destinationPosition, 1);
+    const distance = moveTowards(this, this.destinationPosition, 1); //sends current and future position coordinates to a function which calculates and returns distance
+
+    /*if the hero is about to reach or has reached, tryMove function is run (next input is taken), which sets the next destination position and updates wsEmitPos indicating
+    whether the destination is to be sent to server (only for hero and not remotehero) */
 
     const hasArrived = distance <= 1;
     if (hasArrived) {
-      this.wsEmitPos = this.tryMove(root);
+      this.tryMove(root);
     }
 
     if (this.remoteHero) {
@@ -138,20 +154,16 @@ export class Hero extends GameObject {
     this.tryEmitPosition();
   }
 
+  //this function relays the updated position and animation to the ws server, while updating the lastX and lastY by copying the position updated by moveTowards
   tryEmitPosition() {
     if (this.lastX === this.position.x && this.lastY === this.position.y) {
       return;
     }
-
-    if (this.lastX == null || this.lastY == null) {
-      this.wsEmitPos!.moving = false;
-    } else {
-      this.wsEmitPos!.moving = true;
-    }
-
+    //set the lastX and lastY as the current updated position by moveTowards function
     this.lastX = this.position.x;
     this.lastY = this.position.y;
 
+    //relay to server
     if (this.wsEmitPos!.moving) {
       this.webSocketConnection?.send(
         JSON.stringify({
@@ -168,11 +180,15 @@ export class Hero extends GameObject {
     events.emit("HERO_POSITION", this.position);
   }
 
+  //this function takes in the latest input key, sets the next destination position while updating the animation to be played as well
   tryMove(root: GameObject) {
     const { input } = root;
 
+    //if this is local hero
     if (!this.remoteHero) {
+      //if no input
       if (!input?.direction) {
+        //set the animation to whatever the last standing animation was
         if (this.facingDirection === LEFT) {
           this.body.animations?.play("standLeft");
         }
@@ -189,11 +205,12 @@ export class Hero extends GameObject {
           this.body.animations?.play("standDown");
         }
 
-        return { moving: false, animation: this.facingDirection };
+        //this event is not to be emitted
+        this.wsEmitPos = { moving: false, animation: this.facingDirection };
       } else {
         let nextX = this.destinationPosition.x;
         let nextY = this.destinationPosition.y;
-        const gridSize = 16;
+        const gridSize = 16; //increment by one grid unit
 
         if (input.direction === DOWN) {
           nextY += gridSize;
@@ -215,21 +232,27 @@ export class Hero extends GameObject {
           this.body.animations?.play("walkRight");
         }
 
+        //change the facing direction for the hero next update
         this.facingDirection = input.direction ?? this.facingDirection;
 
+        //check if the space is free, and then update the destination position
         if (isSpaceFree(walls, nextX, nextY)) {
           this.destinationPosition.x = nextX;
           this.destinationPosition.y = nextY;
         }
 
-        return { moving: true, animation: input.direction };
+        //this event is to be emitted
+        this.wsEmitPos = { moving: true, animation: input.direction };
       }
     }
+    //if other user
     if (this.remoteHero) {
+      //default
       if (this.facingDirection === DOWN) {
         this.body.animations?.play("standDown");
       }
 
+      //default for standing remote (wsEmitPos would be undefined)
       if (!this.wsEmitPos?.moving) {
         if (this.remoteAnimation === "LEFT") {
           this.body.animations?.play("standLeft");
@@ -248,6 +271,7 @@ export class Hero extends GameObject {
         }
       }
 
+      //this remoteAnimation is updated by the server events for the remote user
       if (this.remoteAnimation === "DOWN") {
         this.body.animations?.play("walkDown");
       }
@@ -267,7 +291,7 @@ export class Hero extends GameObject {
       this.facingDirection = this.remoteAnimation ?? this.facingDirection;
     }
   }
-
+  //this function runs when pickup event is detected, so a timer is set and a new rod gameObject is created
   onPickUpItem({
     image,
     position,
@@ -291,6 +315,7 @@ export class Hero extends GameObject {
     this.addChild(this.itemPickupShell);
   }
 
+  //this function runs every step to decrement the item pickup time and run the animation up until that timer exists and then destroys the rod gameobject
   workOnItemPickup(delta: number) {
     this.itemPickupTime -= delta;
     this.body.animations?.play("pickUpDown");
@@ -300,6 +325,7 @@ export class Hero extends GameObject {
     }
   }
 
+  //this function is passed the boolean state from computeHeroUI which enables or disables different chat UI states
   setUI(state: {
     chatEnabled: boolean;
     loaderEnabled: boolean;

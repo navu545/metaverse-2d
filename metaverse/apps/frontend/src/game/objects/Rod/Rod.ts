@@ -4,6 +4,7 @@ import { resources } from "../../core/Resource";
 import { Sprite } from "../../core/Sprite";
 import { Vector2 } from "../../core/Vector2";
 
+//rod is an interactive object which on collision with hero destroys itself, and emits another event that runs onPickuptime in hero class for UI update
 export class Rod extends GameObject {
   constructor(x:number, y:number) {
     super(
