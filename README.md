@@ -2,6 +2,8 @@
 
 A **real‑time 2D metaverse** where users can move around a shared space, see each other live, and interact through proximity‑based features like chat and requests. This project is focused on learning and building **full‑stack, real‑time systems** using modern web technologies.
 
+![Animation](https://github.com/user-attachments/assets/f7f053b8-5e17-4a21-8b4c-17a8064315b2)
+
 ---
 
 ## ✨ Features
