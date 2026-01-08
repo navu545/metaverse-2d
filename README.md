@@ -151,6 +151,7 @@ This project is **not a direct clone**, but parts of the **HTTP server, WebSocke
   * Authentication & session flow
 
 * **2D RPG Canvas Game (Learning Resource)**
+  Drive link: [https://drive.google.com/file/d/1Lqkuc92ydqC6WIYAgq4YTU4K27w-1JIv/view](https://drive.google.com/file/d/1Lqkuc92ydqC6WIYAgq4YTU4K27w-1JIv/view)
   Reference material for:
 
   * Canvas-based rendering
