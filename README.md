@@ -67,8 +67,7 @@ metaverse-2d/
 
 ## 🚀 Getting Started
 
-> ⚠️ At the moment, authentication is **automatic** for development purposes.
-> Opening the app in **multiple browser windows or tabs** will create and connect different users to the same space.
+⚠️ At the moment, authentication is **automatic** for development purposes. Opening the app in **multiple browser windows or tabs** will create and connect different users to the same space.
 
 
 ### 1️⃣ Clone the repository
@@ -107,8 +106,6 @@ DATABASE_URL="postgresql://postgres:mysecretpassword@localhost:5432/postgres"
 ```bash
 npx prisma migrate dev
 ```
-
----
 
 ### 4️⃣ Start the project
 
