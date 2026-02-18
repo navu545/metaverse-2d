@@ -75,7 +75,7 @@ metaverse-2d/
 ```bash
 git clone https://github.com/navu545/metaverse-2d.git
 cd metaverse-2d
-````
+```
 
 ### 2️⃣ Install dependencies
 
