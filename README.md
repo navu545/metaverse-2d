@@ -63,8 +63,6 @@ metaverse-2d/
 └── README.md
 ```
 
-````
-
 ---
 
 ## 🚀 Getting Started
@@ -72,7 +70,6 @@ metaverse-2d/
 > ⚠️ At the moment, authentication is **automatic** for development purposes.
 > Opening the app in **multiple browser windows or tabs** will create and connect different users to the same space.
 
----
 
 ### 1️⃣ Clone the repository
 
